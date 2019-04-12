@@ -31,6 +31,7 @@ void nbody(struct Body *bodies, int steps, int output_steps, int N, double G, do
 			double ay;
 			double az;
 
+#pragma omp parallel for private(dx, dy, dz, r, f) reduction(+:fx,fy,fz)
 			for (int k = 0; k < N; k++) {
 				if (j != k) {
 					dx = bodies[j].position[0] - bodies[k].old_position[0];
@@ -49,16 +50,23 @@ void nbody(struct Body *bodies, int steps, int output_steps, int N, double G, do
 			ay = fy / bodies[j].mass;
 			az = fz / bodies[j].mass;
 		
+
 			bodies[j].velocity[0] += ax * DT;
 			bodies[j].velocity[1] += ay * DT;
 			bodies[j].velocity[2] += az * DT;
+
 		
 			bodies[j].position[0] += bodies[j].velocity[0] * DT;
 			bodies[j].position[1] += bodies[j].velocity[1] * DT;
 			bodies[j].position[2] += bodies[j].velocity[2] * DT;
-		}
 
 
+		
+
+              }
+
+
+#pragma omp parallel for
 		for (int j = 0; j < N; j++) {
 			bodies[j].old_position[0] = bodies[j].position[0];
 			bodies[j].old_position[1] = bodies[j].position[1];
@@ -78,3 +86,4 @@ void nbody(struct Body *bodies, int steps, int output_steps, int N, double G, do
 		printf("step = %d, runtime: %f\n", i, t2 - t1);
 	}
 }
+
