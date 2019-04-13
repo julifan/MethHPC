@@ -15,23 +15,33 @@ void nbody(struct Body *bodies, int steps, int output_steps, int N, double G, do
 
 		t1 = omp_get_wtime();
 
-		for (int j = 0; j < N; j++) {
-			double fx = 0.0;
-			double fy = 0.0;
-			double fz = 0.0;
+                        double fx[N][N];
+                        double fy[N][N];
+                        double fz[N][N];
 
-			double dx;
-			double dy;
-			double dz;
+#pragma omp parallel for collapse(2)
+		for (int m = 0; m < N; m++) {
+			for (int o = 0; o < N; o++) {
+			fx[m][o] = 0.0;
+			fy[m][o] = 0.0;
+			fz[m][o] = 0.0;
+			}
+		}
 
-			double f;
-			double r;
+                        double dx;
+                        double dy;
+                        double dz;
 
-			double ax;
-			double ay;
-			double az;
+                        double f;
+                        double r;
 
-#pragma omp parallel for private(dx, dy, dz, r, f) reduction(+:fx,fy,fz)
+                        double ax;
+                        double ay;
+                        double az;
+
+
+#pragma omp parallel for collapse(2) private(dx,dy,dz,r,f)
+for (int j = 0; j < N; j++) {
 			for (int k = 0; k < N; k++) {
 				if (j != k) {
 					dx = bodies[j].position[0] - bodies[k].old_position[0];
@@ -40,45 +50,55 @@ void nbody(struct Body *bodies, int steps, int output_steps, int N, double G, do
 					r = sqrt(dx * dx + dy * dy + dz * dz);
 					f = -G * (bodies[j].mass * bodies[k].mass) / pow((r * r) + (EPS * EPS), 1.5);
 
-					fx += f * dx / r;
-					fy += f * dy / r;
-					fz += f * dz / r;
+					fx[j][k] += f * dx / r;
+					fy[j][k] += f * dy / r;
+					fz[j][k] += f * dz / r;
 				}
 			}
+}
 
-			ax = fx / bodies[j].mass;
-			ay = fy / bodies[j].mass;
-			az = fz / bodies[j].mass;
+#pragma omp parallel for 
+for (int j = 0; j < N; j++) {
+	for (int k = 1; k < N; k++) {
+		fx[j][0] += fx[j][k];
+		fy[j][0] += fy[j][k];
+		fz[j][0] += fz[j][k];
+	}
+}
+
+
+#pragma omp parallel for private (ax, ay, az)
+		for (int j = 0; j < N; j++) {
+
+			ax = fx[j][0] / bodies[j].mass;
+			ay = fy[j][0] / bodies[j].mass;
+			az = fz[j][0] / bodies[j].mass;
 		
-
 			bodies[j].velocity[0] += ax * DT;
 			bodies[j].velocity[1] += ay * DT;
 			bodies[j].velocity[2] += az * DT;
-
 		
 			bodies[j].position[0] += bodies[j].velocity[0] * DT;
 			bodies[j].position[1] += bodies[j].velocity[1] * DT;
 			bodies[j].position[2] += bodies[j].velocity[2] * DT;
-
-
-		
-
               }
 
 
-#pragma omp parallel for
+#pragma omp parallel for collapse(2)
 		for (int j = 0; j < N; j++) {
-			bodies[j].old_position[0] = bodies[j].position[0];
-			bodies[j].old_position[1] = bodies[j].position[1];
-			bodies[j].old_position[2] = bodies[j].position[2];
+                        for (int l = 0; l < 2; l++) {
+			bodies[j].old_position[l] = bodies[j].position[l];
+//			bodies[j].old_position[0] = bodies[j].position[0];
+//			bodies[j].old_position[1] = bodies[j].position[1];
+//			bodies[j].old_position[2] = bodies[j].position[2];
 
-			if (checkpoint != NULL)
-				fprintf(checkpoint, "%d\t%f\t%f\t%f\n\n\n", j, bodies[j].position[0], bodies[j].position[1], bodies[j].position[2]);
+//			if (checkpoint != NULL)
+//				fprintf(checkpoint, "%d\t%f\t%f\t%f\n\n\n", j, bodies[j].position[0], bodies[j].position[1], bodies[j].position[2]);
 		}
-
+}
 		t2 = omp_get_wtime();
 	
-		if (checkpoint != NULL) {
+	if (checkpoint != NULL) {
 			fclose(checkpoint);
 			checkpoint = NULL;
 		}
