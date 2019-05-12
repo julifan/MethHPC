@@ -32,9 +32,10 @@ void compute_pi(int flip, int *local_count, double *answer)
     MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
 
     int count = 0;
-    double x, y, z, pi;
+    double x, y, z;
 
-    srand(seed * world_rank); // Important: Multiply SEED by "rank" when you introduce MPI!
+    seed = seed * world_rank;
+    srand(seed); // Important: Multiply SEED by "rank" when you introduce MPI!
 
     // Calculate PI following a Monte Carlo method
     int iter;
@@ -49,7 +50,6 @@ void compute_pi(int flip, int *local_count, double *answer)
         if (z <= 1.0)
         {
             *local_count += 1;
-            //printf("local count: %d\n", *local_count);
         }
     }
 
@@ -60,36 +60,28 @@ void compute_pi(int flip, int *local_count, double *answer)
         int count_temp[num_ranks];
         count_temp[0] = *local_count;
         int j;
-        printf("approaching to recv\n");
+
         for (j = 1; j < num_ranks; j++) {
             //receive on specified place in array
             MPI_Irecv(&count_temp[j], 1, MPI_INT, j, 0, MPI_COMM_WORLD, &req[j-1]);
 
         }
 
-        printf("approaching wait\n");
         MPI_Waitall(num_ranks-1, req, MPI_STATUSES_IGNORE);
-        printf("after wait");
         //sum up all local_counts
         int i;
         for (i = 0; i < num_ranks; i++) {
             count += count_temp[i];
-            printf("count: %d\n", count);
         }
 
         // Estimate Pi and display the result
         *answer = ((double)count / (double)flip) * 4.0;
-
-       //printf("The result is %f\n", pi);
-
-
     } else {
         //send local_count to rank 0 
         MPI_Isend(local_count, 1, MPI_INT, 0, 0, MPI_COMM_WORLD, &req[world_rank-1]);
-        printf("process %d sent", world_rank);
+
  }
 
 
-}
-                                                                                   93,1          Bot
 
+}
