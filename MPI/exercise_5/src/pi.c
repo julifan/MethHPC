@@ -52,8 +52,8 @@ void compute_pi(int flip, int *local_count, double *answer)
     MPI_Reduce(local_count, &count, 1, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
 
     double contribution = (double) *local_count / (double) flips;
-    char output[15] = "               ";
-    snprintf(output, 15, "%d \t%f", world_rank, contribution);
+    char output[15] = "              ";
+    snprintf(output, 15, "%d \t%f     ", world_rank, contribution);
     output[15 - 1] = *"\n";
     MPI_File file;
     
@@ -62,8 +62,8 @@ void compute_pi(int flip, int *local_count, double *answer)
     
     if(world_rank == 0) {
         *answer = ((double)count / (double)flip) * 4.0;
-        char pi_output[15] = "               ";
-        snprintf(pi_output, 15, "pi = %f", *answer);
+        char pi_output[15] = "             ";
+        snprintf(pi_output, 15, "pi = %f     ", *answer);
         MPI_File_write_at(file, num_ranks * 15, pi_output, 15, MPI_CHAR, MPI_STATUS_IGNORE);
         MPI_File_set_size(file, (num_ranks+1) * 15 - 1);
     }
