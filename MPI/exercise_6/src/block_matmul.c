@@ -117,20 +117,15 @@ void init_matmul(char *A_file, char *B_file, char *outfile)
 	MPI_File_open(MPI_COMM_WORLD, A_file, MPI_MODE_RDONLY, MPI_INFO_NULL, &config.A_file);
 	MPI_File_open(MPI_COMM_WORLD, B_file, MPI_MODE_RDONLY, MPI_INFO_NULL, &config.B_file);
 
-	int code = MPI_File_set_view(config.A_file, offset, MPI_DOUBLE, config.block, "native", MPI_INFO_NULL);
+	MPI_File_set_view(config.A_file, offset, MPI_DOUBLE, config.block, "native", MPI_INFO_NULL);
 	MPI_File_set_view(config.B_file, offset, MPI_DOUBLE, config.block, "native", MPI_INFO_NULL);
 	MPI_File_read_all(config.A_file, config.A, config.local_size, MPI_DOUBLE, MPI_STATUS_IGNORE);
 	MPI_File_read_all(config.B_file, config.B, config.local_size, MPI_DOUBLE, MPI_STATUS_IGNORE);
-		char msg[MPI_MAX_ERROR_STRING];
- 		int resultlen;
-   		MPI_Error_string(code, msg, &resultlen);
-   		fprintf(stderr, "%s\n", msg);
-	/* Close data source files */
-	int i = 0;
-	for(i = 0; i < config.local_size; i++){
-		fprintf(stderr, "%d; %d %d, %d: %f %f \n", config.world_rank, config.coords[0], config.coords[1], i, config.A[i], config.B[i]);
-	}
 	
+
+   		
+  	
+	/* Close data source files */
 	MPI_File_close(&config.A_file);
 	MPI_File_close(&config.B_file);
 }
