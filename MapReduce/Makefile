@@ -1,19 +1,19 @@
-CC = mpicc
+CC = mpicxx
 CFLAGS = -I./include -g -Wall -O3
 LDFLAGS = -lm 
 
 all: mapreduce
 
-usecase.o: src/usecase.c include/usecase.h 
-	$(CC) $(CFLAGS) src/usecase.c
+src/usecase.o: src/usecase.cpp include/usecase.h 
+	$(CC) $(CFLAGS) -c src/usecase.cpp
 
-backend.o: src/backend.c include/backend.h
-	$(CC) $(CFLAGS) src/backend.c
+src/backend.o: src/backend.cpp include/backend.h
+	$(CC) $(CFLAGS) -c src/backend.cpp
 
-main.o: src/main.c src/backend.c src/usecase.c include/usecase.h include/backend.h
-	$(CC) $(CFLAGS) src/main.c src/usecase.c src/backend.c
+src/main.o: src/main.cpp src/backend.cpp src/usecase.cpp include/usecase.h include/backend.h
+	$(CC) $(CFLAGS) -c src/main.cpp src/usecase.cpp src/backend.cpp
 
 mapreduce: src/usecase.o src/backend.o src/main.o
-	$(CC) -o mapreduce.o $(CFLAGS) src/usecase.c src/backend.c src/main.c $(LDFLAGS)
+	$(CC) -o mapreduce.o $(CFLAGS) src/usecase.cpp src/backend.cpp src/main.cpp $(LDFLAGS)
 
-clean: rm -f bin/*.o
+clean: rm -f src/*.o *.o
