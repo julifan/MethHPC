@@ -10,7 +10,7 @@
 
 #include <mpi.h>
 
-void map();
+void map(char* block, int length);
 void reduce();
 
 #endif
