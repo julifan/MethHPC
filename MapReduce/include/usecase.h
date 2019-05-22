@@ -10,7 +10,7 @@
 
 #include <mpi.h>
 
-void map(char* block, int length);
+std::tuple<std::string, int> map(char* block, int* moved);
 void reduce();
 
 #endif
