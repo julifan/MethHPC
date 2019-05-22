@@ -9,7 +9,7 @@
 #include "backend.h"
 #include "usecase.h"
 
-void print_usage();
+void print_usage(char *program);
 
 int main(int argc, char *argv[])
 {

@@ -1,5 +1,5 @@
-#ifndef __CANNON_H__
-#define __CANNON_H__
+#ifndef BACKEND
+#define BACKEND
 
 #include <stdio.h>
 #include <math.h>
