@@ -1,5 +1,6 @@
 #include "backend.h"
 #include "usecase.h"
+#include "hash.h"
 
 char* input;
 int length;
@@ -62,25 +63,26 @@ void mapReduce() {
 
 	//call map() from usecase
 
-	char* myInput = "Hello, world! Aren't you clever? 'Later', she said. Maybe 5 o'clock?' In the year 2017 ... G2g, cya l8r hello_world.h Hermione's time-turner. Good mor~+%g. Hi' Testing_ Bye- The kids' toys toys hello_world";
-	int totalLength = 205;
+	char* myInput = "Hello, world! Aren't you clever? 'Later', she said. Maybe 5 o'clock?' In the year 2017 ... G2g, cya l8r hello_world.h Hermione's time-turner. Good mor~+%g. Hi' Testing_ Bye- The kids' toys toys hello_world ''aaaaaaaaaaaaaaaaaaaabbbbb";
+	int totalLength = 233;
 	int mv = 0;
 	int * moved = &mv;
 
 	//assumption: input and length are initialized.
 	while (totalLength > 0) {
 		std::tuple<std::string, int> tup = map(myInput, moved, totalLength);
+		if (std::get<0>(tup) != "") {
 		//TODO probably pad strings? (to achieve constant length)
-		//TODO hash string from tuple
-		//TODO sort in right bucket
-		buckets[0].push_back(tup);
+		Hash hash = getHash(std::get<0>(tup).c_str(), std::get<0>(tup).length());
+		buckets[hash % size].push_back(tup);
 
+std::cout << "Tupel: " << std::get<0>(tup) << " bucket: " << std::endl;//hash % size << " Hash: " << hash << std::endl; 
+
+		}
 		myInput = myInput + *moved; 
 		totalLength = totalLength - *moved;
 		mv = 0;
 		
-		std::cout << "Tupel: " << std::get<0>(tup) << std::endl; 
-	
 	}
 
 	//redistribute
