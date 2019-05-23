@@ -1,15 +1,12 @@
 #include "backend.h"
+#include "usecase.h"
 
 #include <iostream>
 
-#define SIZE 100
 
-struct Map {
-	char* key;
-	int value;
-};
+char* input;
+int length;
 
-struct Map *map;
 MPI_File outputFile;
 
 
@@ -18,7 +15,7 @@ void init(char* input, char* output) {
 	//set output file
 	//read from given input file (if rank == 0), 
 	//scatter data to map's of processes (if rank == 0)
-	
+
 	int world_size;
 	int world_rank;
 	
@@ -59,9 +56,10 @@ void init(char* input, char* output) {
 		
 		read_pointer += read_buffer_size * sizeof(char);
 	}
-	
+
 	delete[] read_buffer;
 	delete[] map_buffer;
+
 
 }
 
@@ -73,6 +71,39 @@ void mapReduce() {
 	//write to file (if rank == 0)
 	
 	
+	int rank, size;
+	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+	MPI_Comm_size(MPI_COMM_WORLD, &size);
+
+	std::vector<std::tuple<std::string, int > > buckets[size];
+
+	//call map() from usecase
+
+	char* myInput = "Hello, world! Aren't you clever? 'Later', she said. Maybe 5 o'clock?' In the year 2017 ... G2g, cya l8r hello_world.h Hermione's time-turner. Good mor~+%g. Hi' Testing_ Bye- The kids' toys toys hello_world";
+	int totalLength = 205;
+	int mv = 0;
+	int * moved = &mv;
+
+	//assumption: input and length are initialized.
+	while (totalLength > 0) {
+		std::tuple<std::string, int> tup = map(myInput, moved, totalLength);
+		//TODO probably pad strings? (to achieve constant length)
+		//TODO hash string from tuple
+		//TODO sort in right bucket
+		buckets[0].push_back(tup);
+
+		myInput = myInput + *moved; 
+		totalLength = totalLength - *moved;
+		mv = 0;
+		
+		std::cout << "Tupel: " << std::get<0>(tup) << std::endl; 
+	
+	}
+
+	//redistribute
+	//reduce
+	//write to file (if rank == 0)
+
 	
 }
 
