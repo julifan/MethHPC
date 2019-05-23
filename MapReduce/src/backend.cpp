@@ -61,35 +61,31 @@ void mapReduce() {
 	std::vector<std::tuple<std::string, int > > buckets[size];
 
 	//call map() from usecase
-	//redistribute
-	//reduce
-	//write to file (if rank == 0)
 
-	char* myInput = "Hello, world! Aren't you clever? 'Later', she said. Maybe 5 o'clock?' In the year 2017 ... G2g, cya l8r hello_world.h Hermione's time-turner. Good mor~+%g. Hi' Testing_ Bye- The kids' toys toys hello_world \0";
-	//uint64_t length = 208;
+	char* myInput = "Hello, world! Aren't you clever? 'Later', she said. Maybe 5 o'clock?' In the year 2017 ... G2g, cya l8r hello_world.h Hermione's time-turner. Good mor~+%g. Hi' Testing_ Bye- The kids' toys toys hello_world";
+	int totalLength = 205;
 	int mv = 0;
 	int * moved = &mv;
 
 	//assumption: input and length are initialized.
-	//std::tuple<std::string, int> tup = map(myInput);
-	std::string inputL = std::string(myInput);
-	while (inputL.length() > 1) {
-		std::tuple<std::string, int> tup = map(myInput, moved);
-		std::cout << "Tupel: " << std::get<0>(tup) << std::endl; 
+	while (totalLength > 0) {
+		std::tuple<std::string, int> tup = map(myInput, moved, totalLength);
+		//TODO probably pad strings? (to achieve constant length)
 		//TODO hash string from tuple
 		//TODO sort in right bucket
 		buckets[0].push_back(tup);
-		if (inputL.length() > *moved) {
-			myInput = myInput + *moved; 
-			mv = 0;
-			inputL = std::string(myInput); 
-		} else {
-			inputL = "";
-		}
 
-		//TODO probably pad strings? 
+		myInput = myInput + *moved; 
+		totalLength = totalLength - *moved;
+		mv = 0;
+		
+		std::cout << "Tupel: " << std::get<0>(tup) << std::endl; 
 	
 	}
+
+	//redistribute
+	//reduce
+	//write to file (if rank == 0)
 
 	
 }

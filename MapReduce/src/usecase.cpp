@@ -5,12 +5,13 @@
 
 #include "usecase.h"
 
-std::tuple<std::string, int> map(char* block, int* moved) 
+std::tuple<std::string, int> map(char* block, int* moved, const int totalLength) 
 {
 
 	std::string toReturn = std::string("");
-	while (block[0] != '\0') {
-		if ((block[0] < 'a' || block[0] > 'z') && (block[0] < 'A' || block[0] > 'Z')) {
+	while (*moved <= totalLength) {
+		if (((block[0] < 'a' || block[0] > 'z') && (block[0] < 'A' || block[0] > 'Z'))
+			|| *moved + 1 > totalLength) {
 			//std::cout << "not appended" << std::endl;
 			if (toReturn.length() > 0) {
 				std::tuple<std::string, int> tup = make_tuple(toReturn, 1);
