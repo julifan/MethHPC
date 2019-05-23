@@ -16,8 +16,7 @@ void init(char* input, char* output) {
 	//read from given input file (if rank == 0), 
 	//scatter data to map's of processes (if rank == 0)
 
-	int world_size;
-	int world_rank;
+	int world_size, world_rank;
 	
 	MPI_Comm_size(MPI_COMM_WORLD, &world_size);
 	MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
@@ -28,39 +27,85 @@ void init(char* input, char* output) {
 	MPI_Offset file_size = 0;
 	
 	
-	int read_buffer_size = 1024;
-	int map_buffer_size = 256;
+	int read_buffer_size = 32;
 	
 	
 	char* read_buffer = new char[read_buffer_size];
-	char* map_buffer = new char[map_buffer_size];
 	
 	if(world_rank == 0) 
 	{
 		MPI_File_open(MPI_COMM_SELF, input, MPI_MODE_RDONLY, MPI_INFO_NULL, &file);
 		MPI_File_get_size(file, &file_size);
 	}
-	
 	MPI_Bcast(&file_size, 1, MPI_OFFSET, 0, MPI_COMM_WORLD);
+	
+	
+	int map_buffer_size = file_size / world_size;
+	
+	if(world_rank <= file_size - map_buffer_size * world_size) {
+		map_buffer_size++;
+	}
+	
+	
+	
+	char* map_buffer = new char[map_buffer_size];
+	int map_buffer_offset = 0;
+	
 	
 	while(read_pointer < file_size)
 	{
+		
+		int read_size = read_buffer_size;
+		if(read_pointer + read_size > file_size) {
+			read_size = file_size - read_pointer;
+		}
+		
 		if(world_rank == 0)
 		{
-			int read_size = read_buffer_size;
-			if(read_pointer + read_buffer_size >= file_size){read_size = file_size - }
 			MPI_File_read_at(file, read_pointer, read_buffer, read_size, MPI_CHAR, MPI_STATUS_IGNORE);
 		}
-		MPI_Iscatter(read_buffer, 8, MPI_CHAR, map_buffer, 8, MPI_CHAR, 0, MPI_COMM_WORLD, MPI_);
 		
+		int map_buffer_read_size = read_size / world_size;
+		
+		if(world_rank < read_size - map_buffer_read_size * world_size) {
+			map_buffer_read_size++;
+		}
+		
+		int* sizes = new int[world_size];
+		int* offsets = new int[world_size];
+		
+		
+		sizes[world_rank] = map_buffer_read_size;
+		for(int i = 0; i < world_size; i++)
+		{
+			MPI_Bcast(sizes + i, 1, MPI_INT, i, MPI_COMM_WORLD);
+		}
+		int offset = 0;
+		for(int i = 0; i < world_size; i++)
+		{
+			offsets[i] = offset;
+			offset += sizes[i];
+		}
+		
+		
+		MPI_Scatterv(read_buffer, sizes, offsets, MPI_CHAR, map_buffer + map_buffer_offset, map_buffer_read_size, MPI_CHAR, 0, MPI_COMM_WORLD);
+		map_buffer_offset += map_buffer_read_size;
+		
+		
+		delete[] sizes;
+		delete[] offsets;
 		
 		read_pointer += read_buffer_size * sizeof(char);
 	}
 
 	delete[] read_buffer;
-	delete[] map_buffer;
-
-
+	
+	length = map_buffer_size;
+	input = map_buffer;
+	
+	std::string str(input, length);
+	
+	std::cout << "rank " << world_rank << ": " << str << std::endl;
 }
 
 
