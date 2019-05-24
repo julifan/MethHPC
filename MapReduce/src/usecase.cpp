@@ -36,8 +36,7 @@ std::tuple<std::string, int> map(char* block, int* moved, const int totalLength)
 	return tup;
 }
 
-void reduce(std::unordered_map<std::string, int> * map) {
-
-
-
+std::tuple<std::string, int> reduce(std::tuple<std::string, int> one, std::tuple<std::string, int> two) {
+	std::tuple<std::string, int> tup = make_tuple(std::get<0>(one), std::get<1>(one) + std::get<1>(two));
+	return tup;
 }
