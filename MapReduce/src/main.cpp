@@ -21,7 +21,7 @@ int main(int argc, char *argv[])
 	void (*mapRed)() = &mapReduce; 
 
 	double avg_runtime = 0.0, prev_avg_runtime = 0.0, stddev_runtime = 0.0;
-	double start_time, end_time
+	double start_time, end_time;
 	
 	
 	MPI_Init(&argc, &argv);
