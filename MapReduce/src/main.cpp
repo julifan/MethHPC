@@ -21,21 +21,12 @@ int main(int argc, char *argv[])
 	void (*mapRed)() = &mapReduce; 
 
 	double avg_runtime = 0.0, prev_avg_runtime = 0.0, stddev_runtime = 0.0;
-	double start_time, end_time;
-
+	double start_time, end_time
+	
+	
 	MPI_Init(&argc, &argv);
 	MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
-<<<<<<< HEAD
-	
-=======
 
-	int size;
-	MPI_Comm_size(MPI_COMM_WORLD, &size);
-
-	std::cout << "hi from rank " << world_rank << " size is " << size << std::endl;
-
-
->>>>>>> fa5d0ac524b622609c551968348988fa5d0f6505
 	while ((opt = getopt(argc, argv, "cfr:")) != -1) {
 		switch (opt) {
 			case 'f':
