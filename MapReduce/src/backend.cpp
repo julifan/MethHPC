@@ -3,6 +3,7 @@
 #include "hash.h"
 
 #include <iostream>
+#include <unordered_map>
 
 #include <sstream>
 
@@ -152,9 +153,8 @@ void mapReduce() {
 		//TODO probably pad strings? (to achieve constant length)
 		Hash hash = getHash(std::get<0>(tup).c_str(), std::get<0>(tup).length());
 		buckets[hash % size].push_back(tup);
-		
-// std::cout << "Tupel: " << std::get<0>(tup) << " bucket: " << std::endl;//hash % size << " Hash: " << hash << std::endl; 
 
+//std::cout << "Tupel: " << std::get<0>(tup) << " bucket: " << std::endl;//hash % size << " Hash: " << hash << std::endl; 
 		}
 		
 		current_input += *moved; 
@@ -287,7 +287,43 @@ void mapReduce() {
 
 	
 	//redistribute
+
 	//reduce
+	
+	
+	std::vector<std::tuple<std::string, int> > received[3];
+	//std::tuple<std::string, int> tup = std::make_tuple("abc", 1);
+	received[0].push_back(std::make_tuple("abc", 1));
+	received[0].push_back(std::make_tuple("deee", 1));
+	received[0].push_back(std::make_tuple("ddd", 2));
+	received[1].push_back(std::make_tuple("abc", 3));
+
+	//assumption: tuples are in received[size]
+	std::unordered_map<std::string, int> map;
+	//TODO change 3 to size
+	for (int i = 0; i < 3; i++) {
+		for (int j = 0; j < received[i].size(); j++) {
+			std::tuple<std::string, int> tup = received[i].at(j);
+			if (map.find(std::get<0>(tup)) == map.end()) {
+				map.insert(make_pair(std::get<0>(tup), std::get<1>(tup)));
+				
+			} else {
+				map.find(std::get<0>(tup))->second = reduce(map.find(std::get<0>(tup))->second, std::get<1>(tup));	
+			}
+		}		
+	}
+
+	std::unordered_map<std::string, int>:: iterator itr; 
+	std::cout << "\nAll Elements : \n"; 
+	for (itr = map.begin(); itr != map.end(); itr++) 
+	{
+		std::cout << itr->first << "  " << itr->second << std::endl; 
+	} 
+
+
+	//output will be stored in output.
+
+
 	//write to file (if rank == 0)
 
 

@@ -11,6 +11,6 @@
 #include <mpi.h>
 
 std::tuple<std::string, int> map(char* block, int* moved, const int totalLength);
-void reduce();
+int reduce(int one, int two);
 
 #endif

@@ -1,6 +1,5 @@
 #include <string>
 #include <iostream>
-#include <unordered_map>
 
 #include "usecase.h"
 
@@ -36,8 +35,6 @@ std::tuple<std::string, int> map(char* block, int* moved, const int totalLength)
 	return tup;
 }
 
-void reduce(std::unordered_map<std::string, int> * map) {
-
-
-
+int reduce(int one, int two) {
+	return one + two;
 }
