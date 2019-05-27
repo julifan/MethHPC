@@ -170,18 +170,25 @@ void mapReduce() {
 	int* bucket_sizes = new int[size];
 	int* bucket_num_chars = new int[size];
 	int* char_displs = new int[size];
-	int* key_format_displs = new int[size];
+	int* bucket_displs = new int[size];
 	int num_chars = 0;
 	
 	int* key_offsets;
 	int* key_lengths;
+	
+	/*
+	int* value_offsets;
+	int* value_lengths;
+	*/
+	
 	char* chars;
+	int* values;
 	
 
 	for(int i = 0; i < size; i++)
 	{
 		bucket_sizes[i] =  buckets[i].size();
-		key_format_displs[i] = num_keys;
+		bucket_displs[i] = num_keys;
 		num_keys += bucket_sizes[i];
 		
 		bucket_num_chars[i] = 0;
@@ -198,26 +205,35 @@ void mapReduce() {
 	key_lengths = new int[num_keys];
 	chars = new char[num_chars];
 	
+	values = new int[num_keys];
+	
 	std::ostringstream ss;
 	ss << rank << ", keys: ";
 	
 	int i_key = 0;
-	char* current = chars;
+	char* current_key = chars;
+	int* current_value = values;
+	
 	int offset = 0;
+	
 	for(int i = 0; i < size; i++) {
 		for(int j = 0; j < bucket_sizes[i]; j++) {
 			key_offsets[i_key] = offset;
-			std::string s = std::get<0>(buckets[i][j]);
+			std::string key = std::get<0>(buckets[i][j]);
+			int value = std::get<1>(buckets[i][j]);
 			
-			s.copy(current, s.size());
-			key_lengths[i_key] = s.size(); 
+			key.copy(current_key, key.size());
+			key_lengths[i_key] = key.size(); 
 			
-			ss << s << " ";
+			*current_value = value;
 			
-			current += s.size();
-			offset += s.size();
+			ss << key << " ";
+			
+			current_key += key.size();
+			offset += key.size();
 			
 			i_key++;
+			current_value++;
 		}
 	}
 	
@@ -232,7 +248,9 @@ void mapReduce() {
 	
 	int recv_num_keys;
 	int* recv_key_lengths;
-	int* recv_key_format_displs;
+	int* recv_bucket_displs;
+	
+	int* recv_values;
 	
 	
 	MPI_Alltoall(bucket_num_chars, 1, MPI_INT, recv_bucket_num_chars, 1, MPI_INT, MPI_COMM_WORLD);
@@ -255,17 +273,29 @@ void mapReduce() {
 
 		
 	recv_num_keys = 0;
-	recv_key_format_displs = new int[size];
+	recv_bucket_displs = new int[size];
 	for(int i = 0; i < size; i++) {
-		recv_key_format_displs[i] = recv_num_keys;
+		recv_bucket_displs[i] = recv_num_keys;
 		recv_num_keys += recv_bucket_sizes[i];
 	}
 	recv_key_lengths = new int[recv_num_keys];
 	
-	MPI_Alltoallv(key_lengths, bucket_sizes, key_format_displs, MPI_INT, recv_key_lengths, recv_bucket_sizes, recv_key_format_displs, MPI_INT, MPI_COMM_WORLD);
+	MPI_Alltoallv(key_lengths, bucket_sizes, bucket_displs, MPI_INT, recv_key_lengths, recv_bucket_sizes, recv_bucket_displs, MPI_INT, MPI_COMM_WORLD);
+	
+	
+	recv_values = new int[recv_num_keys];
+	
+	
+	MPI_Alltoallv(values, bucket_sizes, bucket_displs, MPI_INT, recv_values, recv_bucket_sizes, recv_bucket_displs, MPI_INT, MPI_COMM_WORLD);
+	
+	
 
-	std::vector<std::string> keys;
-	current = recv_chars;
+	
+	
+	std::vector<std::tuple<std::string, int > > key_value_pairs_received;
+	
+	current_key = recv_chars;
+	current_value = recv_values;
 	
 	std::ostringstream ss_recv;
 	ss_recv << rank << ", keys_recv: ";
@@ -273,44 +303,45 @@ void mapReduce() {
 	{
 		int key_length = recv_key_lengths[i];
 		// std::cout << rank << ", recv length: " << key_length << std::endl;
-		std::string s(current, key_length);
-		ss_recv << s << " ";
-		keys.push_back(s);
-		current += key_length;
+		std::string key(current_key, key_length);
+		ss_recv << key;
 		
+		int value = *recv_values;
+		ss_recv << ":" << value << " ";
+		
+		key_value_pairs_received.push_back(make_tuple(key, value));
+		current_key += key_length;
+		recv_values++;
 	}
 	std::cout << ss_recv.str() << std::endl;
 	
 	
 	
+	std::vector<std::tuple<std::string, int>>& received = key_value_pairs_received;
 	
-
+	//====================================
+	//		Reduce
+	//====================================
 	
-	//redistribute
-
-	//reduce
-	
-	
+	/*
 	std::vector<std::tuple<std::string, int> > received[3];
 	//std::tuple<std::string, int> tup = std::make_tuple("abc", 1);
 	received[0].push_back(std::make_tuple("abc", 1));
 	received[0].push_back(std::make_tuple("deee", 1));
 	received[0].push_back(std::make_tuple("ddd", 2));
 	received[1].push_back(std::make_tuple("abc", 3));
-
+	*/
 	//assumption: tuples are in received[size]
 	std::unordered_map<std::string, int> map;
-	//TODO change 3 to size
-	for (int i = 0; i < 3; i++) {
-		for (int j = 0; j < received[i].size(); j++) {
-			std::tuple<std::string, int> tup = received[i].at(j);
-			if (map.find(std::get<0>(tup)) == map.end()) {
-				map.insert(make_pair(std::get<0>(tup), std::get<1>(tup)));
-				
-			} else {
-				map.find(std::get<0>(tup))->second = reduce(map.find(std::get<0>(tup))->second, std::get<1>(tup));	
-			}
-		}		
+	//TODO change 3 to size XD
+	for (int i = 0; i < received.size(); i++) {
+		std::tuple<std::string, int> tup = received[i];
+		if (map.find(std::get<0>(tup)) == map.end()) {
+			map.insert(make_pair(std::get<0>(tup), std::get<1>(tup)));
+			
+		} else {
+			map.find(std::get<0>(tup))->second = reduce(map.find(std::get<0>(tup))->second, std::get<1>(tup));	
+		}
 	}
 
 	std::unordered_map<std::string, int>:: iterator itr; 
