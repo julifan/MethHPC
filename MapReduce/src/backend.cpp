@@ -36,85 +36,62 @@ void init(char* input, char* output) {
 	MPI_Offset read_pointer = 0;
 	MPI_Offset file_size = 0;
 	
-	
-	int read_buffer_size = 64;
-	
-	
-	char* read_buffer = new char[read_buffer_size];
-	
-	if(world_rank == 0) 
-	{
-		MPI_File_open(MPI_COMM_SELF, input, MPI_MODE_RDONLY, MPI_INFO_NULL, &file);
-		MPI_File_get_size(file, &file_size);
-	}
-	MPI_Bcast(&file_size, 1, MPI_OFFSET, 0, MPI_COMM_WORLD);
+	MPI_File_open(MPI_COMM_WORLD, input, MPI_MODE_RDONLY, MPI_INFO_NULL, &file);
+	MPI_File_get_size(file, &file_size);
 	
 	
-	int map_buffer_size = file_size / world_size;
+	int chunk_size = 64;
+	char* chunk = new char[chunk_size / sizeof(char)];
 	
-	if(world_rank <= file_size - map_buffer_size * world_size) {
-		map_buffer_size++;
-	}
+	MPI_Datatype chunk_type;
 	
-	
-	
-	char* map_buffer = new char[map_buffer_size];
-	int map_buffer_offset = 0;
+	MPI_Type_contiguous(chunk_size, MPI_CHAR, &chunk_type);
+	MPI_Type_commit(&chunk_type);
 	
 	
 	while(read_pointer < file_size)
 	{
-		
-		int read_size = read_buffer_size;
-		if(read_pointer + read_size > file_size) {
-			read_size = file_size - read_pointer;
+		int read_size;
+		int disp;
+		if(read_pointer + world_size * chunk_size < file_size) {
+			read_size = chunk_size;
+			disp = read_pointer + world_rank * read_size;
 		}
-		
-		if(world_rank == 0)
-		{
-			MPI_File_read_at(file, read_pointer, read_buffer, read_size, MPI_CHAR, MPI_STATUS_IGNORE);
-		}
-		
-		int map_buffer_read_size = read_size / world_size;
-		
-		if(world_rank < read_size - map_buffer_read_size * world_size) {
-			map_buffer_read_size++;
-		}
-		
-		int* sizes = new int[world_size];
-		int* offsets = new int[world_size];
-		
-		
-		sizes[world_rank] = map_buffer_read_size;
-		for(int i = 0; i < world_size; i++)
-		{
-			MPI_Bcast(sizes + i, 1, MPI_INT, i, MPI_COMM_WORLD);
-		}
-		int offset = 0;
-		for(int i = 0; i < world_size; i++)
-		{
-			offsets[i] = offset;
-			offset += sizes[i];
-		}
-		
-		
-		MPI_Scatterv(read_buffer, sizes, offsets, MPI_CHAR, map_buffer + map_buffer_offset, map_buffer_read_size, MPI_CHAR, 0, MPI_COMM_WORLD);
-		map_buffer_offset += map_buffer_read_size;
-		
-		
-		delete[] sizes;
-		delete[] offsets;
-		
-		read_pointer += read_buffer_size * sizeof(char);
-	}
-
-	delete[] read_buffer;
+		else {
+			int leftover = file_size - read_pointer;
+			read_size = leftover / world_size;
+			if(world_rank < leftover - read_size * world_size) {
+				read_size++;
+				disp = read_pointer + world_rank * read_size;
+			}
+			else {
+				disp = read_pointer + (leftover - read_size * world_size) * (read_size + 1) + (world_rank - (leftover - read_size * world_size)) * read_size;
+			}
+			MPI_Type_contiguous(read_size, MPI_CHAR, &chunk_type);
+			MPI_Type_commit(&chunk_type);
 	
-	config.length = map_buffer_size;
-	config.input = map_buffer;
+		}
+		std::cout << "filesize: " << file_size << std::endl;
+		std::cout << world_rank << ": " << disp << std::endl;
+		std::cout << world_rank << ": " << read_size << std::endl;
+		MPI_File_set_view(file, disp, MPI_CHAR, chunk_type, "native", MPI_INFO_NULL);
+		MPI_File_read_all(file, chunk, read_size, MPI_CHAR, MPI_STATUS_IGNORE);
+		
+		read_pointer += chunk_size * world_size;
+		
+		
+		std::string str(chunk, read_size);
+	
+		std::cout << "rank " << world_rank << ": " << str << std::endl;
+		
+		
+		
+	}
+	
 	
 	
 }
+
 
 
 void mapReduce() {
