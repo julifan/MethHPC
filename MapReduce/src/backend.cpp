@@ -7,14 +7,11 @@
 
 #include <sstream>
 
-
-
-
-MPI_File outputFile;
-
 struct Config
 {
 	char* input;
+	char* output;
+	MPI_File outputFile;
 };
 
 struct Config config;
@@ -26,6 +23,7 @@ void init(char* input, char* output) {
 	//scatter data to map's of processes (if rank == 0)
 	
 	config.input = input;
+	config.output = output;
 	
 }
 
@@ -37,7 +35,7 @@ void mapChunks(char* input, int length, std::unordered_map<std::string, int>* bu
 
 	std::string str(input, length);
 	
-	std::cout << "rank " << rank << ": " << length <<  ", " << str << std::endl;
+	//std::cout << "rank " << rank << ": " << length <<  ", " << str << std::endl;
 	int mv = 0;
 	int* moved = &mv;
 	char* current_input = input;
@@ -65,7 +63,7 @@ void mapChunks(char* input, int length, std::unordered_map<std::string, int>* bu
 		mv = 0;
 	}
 
-	std::cout << rank << ": finished mapping" << std::endl;
+	//std::cout << rank << ": finished mapping" << std::endl;
 		
 	
 }
@@ -162,7 +160,7 @@ void mapReduce() {
 		mv = 0;
 	}
 	*/
-	std::cout << rank << ": finished mapping" << std::endl;
+	//std::cout << rank << ": finished mapping" << std::endl;
 		
 	int num_keys =  0;
 	
@@ -241,7 +239,7 @@ void mapReduce() {
 		}
 	}
 	
-	std::cout << ss.str() << std::endl;
+	//std::cout << ss.str() << std::endl;
 	
 	
 	int* recv_bucket_num_chars = new int[size];
@@ -315,7 +313,7 @@ void mapReduce() {
 		current_key += key_length;
 		recv_values++;
 	}
-	std::cout << ss_recv.str() << std::endl;
+	//std::cout << ss_recv.str() << std::endl;
 	
 	
 	
@@ -347,25 +345,43 @@ void mapReduce() {
 	}
 
 	std::unordered_map<std::string, int>:: iterator itr; 
-	std::cout << "\nAll Elements : \n"; 
-	for (itr = map.begin(); itr != map.end(); itr++) 
+	//std::cout << "\nAll Elements : \n"; 
+	/*for (itr = map.begin(); itr != map.end(); itr++) 
 	{
 		std::cout << itr->first << "  " << itr->second << std::endl; 
-	} 
+	} */
 
 
 	//convert map to string
 	std::string toWrite = "";
 	for (itr = map.begin(); itr != map.end(); itr++) {
 		toWrite.append(itr->first);
-		toWrite.append(" : ");
+		toWrite.append(" ");
 		toWrite.append(std::to_string(itr->second));
+		//toWrite.append(", ");
 		toWrite.append("\n");
 	}	
+	//std::cout << "toWrite: " << toWrite << std::endl;
+	//toWrite = "a";
+	char toWriteChar[toWrite.length() + 1];
+	strcpy(toWriteChar, toWrite.c_str());
 
+	int pre = 0; 
+	int* prefix = &pre;
 
-	//collective write to file: MPI_EXSCAN, MPI_WRITE_AT_ALL
-		
+	int localLength = toWrite.length();
+	int* localLengthPtr = &localLength;
+
+	//std::cout << "localLength: " << localLength << " toWriteChar: " << toWriteChar << "\n\n" << std::endl;
+
+	MPI_Exscan(localLengthPtr, prefix, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+
+	//std::cout << "rank: " << rank << " length: " << *prefix << "toWrite length: " << toWrite << " " << toWrite.length() << "\n\n"<< std::endl;
+
+	MPI_File_open(MPI_COMM_WORLD, config.output, MPI_MODE_WRONLY | MPI_MODE_CREATE, MPI_INFO_NULL, &config.outputFile);
+	MPI_File_set_view(config.outputFile, *prefix, MPI_CHAR, MPI_CHAR, "native", MPI_INFO_NULL);
+	MPI_File_write_all(config.outputFile, toWriteChar, localLength, MPI_CHAR, MPI_STATUS_IGNORE);
+	MPI_File_close(&config.outputFile);
 
 }
 
