@@ -117,6 +117,50 @@ void init(char* input, char* output) {
 }
 
 
+void mapChunks(char* input, int length) {
+	int rank, size;
+	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+	MPI_Comm_size(MPI_COMM_WORLD, &size);
+
+	std::string str(input, length);
+	
+	std::cout << "rank " << rank << ": " << length <<  ", " << str << std::endl;
+	
+	std::unordered_map<std::string, int> buckets[size];
+
+	int mv = 0;
+	int* moved = &mv;
+	char* current_input = input;
+	int reamining = length;
+	
+	//assumption: input and length are initialized.
+	while (remaining > 0) {
+		std::tuple<std::string, int> tup = map(current_input, moved, remaining);
+		if (std::get<0>(tup) != "") {
+		//TODO probably pad strings? (to achieve constant length)
+		Hash hash = getHash(std::get<0>(tup).c_str(), std::get<0>(tup).length());
+		
+		if (buckets[hash % size].find(std::get<0>(tup)) != map.end()) {
+			//key already exists. reduce locally
+			map.find(std::get<0>(tup))->second = reduce(map.find(std::get<0>(tup))->second, std::get<1>(tup));
+		} else {
+			buckets[hash % size].insert(make_pair(std::get<0>(tup), std::get<1>(tup)));
+		}
+
+//std::cout << "Tupel: " << std::get<0>(tup) << " bucket: " << std::endl;//hash % size << " Hash: " << hash << std::endl; 
+		}
+		
+		current_input += *moved; 
+		remaining -= *moved;
+		mv = 0;
+	}
+
+	std::cout << rank << ": finished mapping" << std::endl;
+		
+	
+}
+
+
 void mapReduce() {
 	//call map() from usecase
 	//redistribute
