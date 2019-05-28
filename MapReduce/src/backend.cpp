@@ -23,7 +23,7 @@ struct Config config;
 void init(char* input, char* output) {
 	//MPI init
 	//set output file
-	//read from given input file (if rank == 0), 
+	//read from given input file (if rank == 0)
 	//scatter data to map's of processes (if rank == 0)
 
 	int world_size, world_rank;
@@ -107,7 +107,7 @@ void mapChunks(char* input, int length) {
 	int mv = 0;
 	int* moved = &mv;
 	char* current_input = input;
-	int reamining = length;
+	int remaining = length;
 	
 	//assumption: input and length are initialized.
 	while (remaining > 0) {
@@ -115,12 +115,12 @@ void mapChunks(char* input, int length) {
 		if (std::get<0>(tup) != "") {
 		//TODO probably pad strings? (to achieve constant length)
 		Hash hash = getHash(std::get<0>(tup).c_str(), std::get<0>(tup).length());
-		
-		if (buckets[hash % size].find(std::get<0>(tup)) != map.end()) {
+		int procNo = hash % size;
+		if (buckets[procNo].find(std::get<0>(tup)) != buckets[procNo].end()) {
 			//key already exists. reduce locally
-			map.find(std::get<0>(tup))->second = reduce(map.find(std::get<0>(tup))->second, std::get<1>(tup));
+			buckets[procNo].find(std::get<0>(tup))->second = reduce(buckets[procNo].find(std::get<0>(tup))->second, std::get<1>(tup));
 		} else {
-			buckets[hash % size].insert(make_pair(std::get<0>(tup), std::get<1>(tup)));
+			buckets[procNo].insert(make_pair(std::get<0>(tup), std::get<1>(tup)));
 		}
 
 //std::cout << "Tupel: " << std::get<0>(tup) << " bucket: " << std::endl;//hash % size << " Hash: " << hash << std::endl; 
@@ -372,11 +372,18 @@ void mapReduce() {
 	} 
 
 
-	//output will be stored in output.
+	//convert map to string
+	std::string toWrite = "";
+	for (itr = map.begin(); itr != map.end(); itr++) {
+		toWrite.append(itr->first);
+		toWrite.append(" : ");
+		toWrite.append(std::to_string(itr->second));
+		toWrite.append("\n");
+	}	
 
 
-	//write to file (if rank == 0)
-
+	//collective write to file: MPI_EXSCAN, MPI_WRITE_AT_ALL
+		
 
 }
 
