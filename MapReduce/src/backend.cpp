@@ -7,15 +7,14 @@
 
 #include <sstream>
 
-char* input;
-int length;
+
+
 
 MPI_File outputFile;
 
-
-struct Config {
+struct Config
+{
 	char* input;
-	int length;
 };
 
 struct Config config;
@@ -25,75 +24,13 @@ void init(char* input, char* output) {
 	//set output file
 	//read from given input file (if rank == 0)
 	//scatter data to map's of processes (if rank == 0)
-
-	int world_size, world_rank;
 	
-	MPI_Comm_size(MPI_COMM_WORLD, &world_size);
-	MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
-	
-	MPI_File file;
-	
-	MPI_Offset read_pointer = 0;
-	MPI_Offset file_size = 0;
-	
-	MPI_File_open(MPI_COMM_WORLD, input, MPI_MODE_RDONLY, MPI_INFO_NULL, &file);
-	MPI_File_get_size(file, &file_size);
-	
-	
-	int chunk_size = 64;
-	char* chunk = new char[chunk_size / sizeof(char)];
-	
-	MPI_Datatype chunk_type;
-	
-	MPI_Type_contiguous(chunk_size, MPI_CHAR, &chunk_type);
-	MPI_Type_commit(&chunk_type);
-	
-	
-	while(read_pointer < file_size)
-	{
-		int read_size;
-		int disp;
-		if(read_pointer + world_size * chunk_size < file_size) {
-			read_size = chunk_size;
-			disp = read_pointer + world_rank * read_size;
-		}
-		else {
-			int leftover = file_size - read_pointer;
-			read_size = leftover / world_size;
-			if(world_rank < leftover - read_size * world_size) {
-				read_size++;
-				disp = read_pointer + world_rank * read_size;
-			}
-			else {
-				disp = read_pointer + (leftover - read_size * world_size) * (read_size + 1) + (world_rank - (leftover - read_size * world_size)) * read_size;
-			}
-			MPI_Type_contiguous(read_size, MPI_CHAR, &chunk_type);
-			MPI_Type_commit(&chunk_type);
-	
-		}
-		std::cout << "filesize: " << file_size << std::endl;
-		std::cout << world_rank << ": " << disp << std::endl;
-		std::cout << world_rank << ": " << read_size << std::endl;
-		MPI_File_set_view(file, disp, MPI_CHAR, chunk_type, "native", MPI_INFO_NULL);
-		MPI_File_read_all(file, chunk, read_size, MPI_CHAR, MPI_STATUS_IGNORE);
-		
-		read_pointer += chunk_size * world_size;
-		
-		
-		std::string str(chunk, read_size);
-	
-		std::cout << "rank " << world_rank << ": " << str << std::endl;
-		
-		
-		
-	}
-	
-	
+	config.input = input;
 	
 }
 
 
-void mapChunks(char* input, int length) {
+void mapChunks(char* input, int length, std::unordered_map<std::string, int>* buckets) {
 	int rank, size;
 	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 	MPI_Comm_size(MPI_COMM_WORLD, &size);
@@ -101,9 +38,6 @@ void mapChunks(char* input, int length) {
 	std::string str(input, length);
 	
 	std::cout << "rank " << rank << ": " << length <<  ", " << str << std::endl;
-	
-	std::unordered_map<std::string, int> buckets[size];
-
 	int mv = 0;
 	int* moved = &mv;
 	char* current_input = input;
@@ -143,23 +77,69 @@ void mapReduce() {
 	//reduce
 	//write to file (if rank == 0)
 	
-	char* input = config.input;
-	int length = config.length;
-	
-	
 	int rank, size;
 	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 	MPI_Comm_size(MPI_COMM_WORLD, &size);
-
-	std::string str(input, length);
 	
-	std::cout << "rank " << rank << ": " << length <<  ", " << str << std::endl;
 	
-	std::vector<std::tuple<std::string, int > > buckets[size];
-
+	
+	std::unordered_map<std::string, int>* buckets = new std::unordered_map<std::string, int>[size];
+	
+	
+	MPI_File file;
+	
+	MPI_Offset read_pointer = 0;
+	MPI_Offset file_size = 0;
+	
+	MPI_File_open(MPI_COMM_WORLD, config.input, MPI_MODE_RDONLY, MPI_INFO_NULL, &file);
+	MPI_File_get_size(file, &file_size);
+	
+	
+	int chunk_size = 64;
+	char* chunk = new char[chunk_size / sizeof(char)];
+	
+	MPI_Datatype chunk_type;
+	
+	MPI_Type_contiguous(chunk_size, MPI_CHAR, &chunk_type);
+	MPI_Type_commit(&chunk_type);
+	
+	
+	while(read_pointer < file_size)
+	{
+		int read_size;
+		int disp;
+		if(read_pointer + size * chunk_size < file_size) {
+			read_size = chunk_size;
+			disp = read_pointer + rank * read_size;
+		}
+		else {
+			int leftover = file_size - read_pointer;
+			read_size = leftover / size;
+			if(rank < leftover - read_size * size) {
+				read_size++;
+				disp = read_pointer + rank * read_size;
+			}
+			else {
+				disp = read_pointer + (leftover - read_size * size) * (read_size + 1) + (rank - (leftover - read_size * size)) * read_size;
+			}
+			MPI_Type_contiguous(read_size, MPI_CHAR, &chunk_type);
+			MPI_Type_commit(&chunk_type);
+	
+		}
+		MPI_File_set_view(file, disp, MPI_CHAR, chunk_type, "native", MPI_INFO_NULL);
+		MPI_File_read_all(file, chunk, read_size, MPI_CHAR, MPI_STATUS_IGNORE);
+		
+		read_pointer += chunk_size * size;
+		
+		
+		// map chunks
+		mapChunks(chunk, read_size, buckets);
+		
+	}
+	
 	//call map() from usecase
 
-	
+	/*
 	int mv = 0;
 	int * moved = &mv;
 	
@@ -181,7 +161,7 @@ void mapReduce() {
 		remaining -= *moved;
 		mv = 0;
 	}
-
+	*/
 	std::cout << rank << ": finished mapping" << std::endl;
 		
 	int num_keys =  0;
@@ -213,10 +193,13 @@ void mapReduce() {
 		
 		bucket_num_chars[i] = 0;
 		char_displs[i] = num_chars;
-		for(int j = 0; j < bucket_sizes[i]; j++)
+		
+		
+		std::unordered_map<std::string, int>:: iterator itr; 
+		for (itr = buckets[i].begin(); itr != buckets[i].end(); itr++) 
 		{
-			bucket_num_chars[i] += std::get<0>(buckets[i][j]).size();
-		}
+			bucket_num_chars[i] += itr->first.size();
+		} 
 		num_chars += bucket_num_chars[i];
 		
 	}
@@ -237,10 +220,11 @@ void mapReduce() {
 	int offset = 0;
 	
 	for(int i = 0; i < size; i++) {
-		for(int j = 0; j < bucket_sizes[i]; j++) {
+		std::unordered_map<std::string, int>::iterator itr;
+		for(itr = buckets[i].begin(); itr != buckets[i].end(); itr++) {
 			key_offsets[i_key] = offset;
-			std::string key = std::get<0>(buckets[i][j]);
-			int value = std::get<1>(buckets[i][j]);
+			std::string key = itr->first;
+			int value = itr->second;
 			
 			key.copy(current_key, key.size());
 			key_lengths[i_key] = key.size(); 
@@ -307,8 +291,6 @@ void mapReduce() {
 	
 	
 	MPI_Alltoallv(values, bucket_sizes, bucket_displs, MPI_INT, recv_values, recv_bucket_sizes, recv_bucket_displs, MPI_INT, MPI_COMM_WORLD);
-	
-	
 
 	
 	
