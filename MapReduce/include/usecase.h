@@ -10,6 +10,10 @@
 
 #include <mpi.h>
 
+#include <tuple>
+#include <string>
+
+
 std::tuple<std::string, int> map(char* block, int* moved, const int totalLength);
 int reduce(int one, int two);
 

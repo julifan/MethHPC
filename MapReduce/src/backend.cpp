@@ -19,6 +19,13 @@ struct Config config;
 void init(char* input, char* output) {
 	config.input = input;
 	config.output = output;
+	
+	
+	int version;
+	int subversion;
+	
+	MPI_Get_version(&version, &subversion);
+	std::cout << version << " " << subversion <<  std::endl;
 }
 
 
@@ -75,8 +82,17 @@ void mapReduce() {
 	MPI_File_get_size(file, &file_size);
 	
 	
-	int chunk_size = 64;
-	char* chunk = new char[chunk_size / sizeof(char)];
+	int chunk_size = 64000000;
+	int num_chunks = file_size / (chunk_size * size);
+	if(num_chunks * chunk_size < file_size) {
+		num_chunks++;
+	}
+	
+	int last_chunk_size = 0;
+	
+	
+	char** chunks = new char*[num_chunks];
+	MPI_Request* requests = new MPI_Request[num_chunks];
 	
 	MPI_Datatype chunk_type;
 	
@@ -84,7 +100,7 @@ void mapReduce() {
 	MPI_Type_commit(&chunk_type);
 	
 	
-	while(read_pointer < file_size)
+	for(int i = 0; i < num_chunks; i++)
 	{
 		int read_size;
 		int disp;
@@ -102,20 +118,34 @@ void mapReduce() {
 			else {
 				disp = read_pointer + (leftover - read_size * size) * (read_size + 1) + (rank - (leftover - read_size * size)) * read_size;
 			}
+			last_chunk_size = read_size;
 			MPI_Type_contiguous(read_size, MPI_CHAR, &chunk_type);
 			MPI_Type_commit(&chunk_type);
 	
 		}
+		chunks[i] = new char[read_size];
 		MPI_File_set_view(file, disp, MPI_CHAR, chunk_type, "native", MPI_INFO_NULL);
-		MPI_File_read_all(file, chunk, read_size, MPI_CHAR, MPI_STATUS_IGNORE);
+		MPI_File_iread_all(file, chunks[i], read_size, MPI_CHAR, &requests[i]);
 		
 		read_pointer += chunk_size * size;
 		
 		
 		// map chunks
-		mapChunks(chunk, read_size, buckets);
+		// mapChunks(chunk, read_size, buckets);
 		
 	}
+	for(int i = 0; i < num_chunks - 1; i++) {
+		MPI_Wait(&requests[i], MPI_STATUS_IGNORE);
+		
+		std::string key(chunks[i], chunk_size);
+		
+		std::cout << rank << ": " << key << std::endl;
+		
+		mapChunks(chunks[i], chunk_size, buckets);
+	}
+	MPI_Wait(&requests[num_chunks-1], MPI_STATUS_IGNORE);
+	mapChunks(chunks[num_chunks-1], last_chunk_size, buckets);
+	
 	
 	int num_keys =  0;
 	
@@ -158,14 +188,15 @@ void mapReduce() {
 	
 	values = new int[num_keys];
 	
-	std::ostringstream ss;
-	ss << rank << ", keys: ";
 	
 	int i_key = 0;
 	char* current_key = chars;
 	int* current_value = values;
 	
 	int offset = 0;
+	
+	std::ostringstream ss;
+	ss << rank << ": ";
 	
 	for(int i = 0; i < size; i++) {
 		std::unordered_map<std::string, int>::iterator itr;
@@ -174,12 +205,12 @@ void mapReduce() {
 			std::string key = itr->first;
 			int value = itr->second;
 			
+			ss << key << " ";
+			
 			key.copy(current_key, key.size());
 			key_lengths[i_key] = key.size(); 
 			
 			*current_value = value;
-			
-			ss << key << " ";
 			
 			current_key += key.size();
 			offset += key.size();
@@ -189,7 +220,7 @@ void mapReduce() {
 		}
 	}
 	
-	//std::cout << ss.str() << std::endl;
+	std::cout << ss.str() << std::endl;
 	
 	
 	int* recv_bucket_num_chars = new int[size];
@@ -204,7 +235,7 @@ void mapReduce() {
 	
 	int* recv_values;
 	
-	
+	// redistribute the number of chars each process is going to send
 	MPI_Alltoall(bucket_num_chars, 1, MPI_INT, recv_bucket_num_chars, 1, MPI_INT, MPI_COMM_WORLD);
 	
 
@@ -231,13 +262,15 @@ void mapReduce() {
 		recv_num_keys += recv_bucket_sizes[i];
 	}
 	recv_key_lengths = new int[recv_num_keys];
-	
-	MPI_Alltoallv(key_lengths, bucket_sizes, bucket_displs, MPI_INT, recv_key_lengths, recv_bucket_sizes, recv_bucket_displs, MPI_INT, MPI_COMM_WORLD);
-	
-	
 	recv_values = new int[recv_num_keys];
 	
 	
+	// redistribute array with the number of chars per string
+	MPI_Alltoallv(key_lengths, bucket_sizes, bucket_displs, MPI_INT, recv_key_lengths, recv_bucket_sizes, recv_bucket_displs, MPI_INT, MPI_COMM_WORLD);
+	
+	
+	
+	// redistribute values
 	MPI_Alltoallv(values, bucket_sizes, bucket_displs, MPI_INT, recv_values, recv_bucket_sizes, recv_bucket_displs, MPI_INT, MPI_COMM_WORLD);
 
 	
@@ -247,17 +280,13 @@ void mapReduce() {
 	current_key = recv_chars;
 	current_value = recv_values;
 	
-	std::ostringstream ss_recv;
-	ss_recv << rank << ", keys_recv: ";
 	for(int i = 0; i < recv_num_keys; i++)
 	{
 		int key_length = recv_key_lengths[i];
 		//std::cout << rank << ", recv length: " << key_length << std::endl;
 		std::string key(current_key, key_length);
-		ss_recv << key;
 		
 		int value = *recv_values;
-		ss_recv << ":" << value << " ";
 		
 		key_value_pairs_received.push_back(make_tuple(key, value));
 		current_key += key_length;
