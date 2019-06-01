@@ -200,6 +200,7 @@ void mapReduce() {
 	
 	for(int i = 0; i < size; i++) {
 		std::unordered_map<std::string, int>::iterator itr;
+		
 		for(itr = buckets[i].begin(); itr != buckets[i].end(); itr++) {
 			key_offsets[i_key] = offset;
 			std::string key = itr->first;
@@ -218,6 +219,7 @@ void mapReduce() {
 			i_key++;
 			current_value++;
 		}
+		
 	}
 	
 	std::cout << ss.str() << std::endl;

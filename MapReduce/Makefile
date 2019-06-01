@@ -2,6 +2,7 @@ CC = mpicxx
 CFLAGS = -I./include -g -Wall -O3
 LDFLAGS = -lm 
 
+
 all: mapreduce
 
 src/hash.o: src/hash.cpp include/hash.h
