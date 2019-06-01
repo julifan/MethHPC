@@ -27,32 +27,55 @@ void mapChunks(char* input, int length, std::unordered_map<std::string, int>* bu
 	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 	MPI_Comm_size(MPI_COMM_WORLD, &size);
 
-	std::string str(input, length);
-	
-	//std::cout << "rank " << rank << ": " << length <<  ", " << str << std::endl;
-	int mv = 0;
-	int* moved = &mv;
-	char* current_input = input;
-	int remaining = length;
-	
-	while (remaining > 0) {
-		std::tuple<std::string, int> tup = map(current_input, moved, remaining);
-		if (std::get<0>(tup) != "") {
-		Hash hash = getHash(std::get<0>(tup).c_str(), std::get<0>(tup).length());
-		int procNo = hash % size;
-		if (buckets[procNo].find(std::get<0>(tup)) != buckets[procNo].end()) {
-			//key already exists. reduce locally
-			buckets[procNo].find(std::get<0>(tup))->second = reduce(buckets[procNo].find(std::get<0>(tup))->second, std::get<1>(tup));
-		} else {
-			buckets[procNo].insert(make_pair(std::get<0>(tup), std::get<1>(tup)));
+	int MAX_THREADS = omp_get_max_threads();
+	std::vector<std::tuple<std::string, int> > localValues[size][MAX_THREADS];
+
+	#pragma omp parallel for
+	for(int i = 0; i < omp_get_num_threads(); i++) {
+		int tid = omp_get_thread_num();
+		int nt = omp_get_num_threads();
+
+		char * current_input = input;
+		current_input += (length / nt) * tid;
+		int remaining = length / nt;
+
+		if (tid == nt - 1) {
+			int missing = length - (nt * (length / nt));
+			remaining += missing;
 		}
 
-//std::cout << "Tupel: " << std::get<0>(tup) << " bucket: " << std::endl;//hash % size << " Hash: " << hash << std::endl; 
-		}
+
+		int mv = 0;
+		int* moved = &mv; 
 		
-		current_input += *moved; 
-		remaining -= *moved;
-		mv = 0;
+		while (remaining > 0) {
+			std::tuple<std::string, int> tup = map(current_input, moved, remaining);
+			if (std::get<0>(tup) != "") {
+				Hash hash = getHash(std::get<0>(tup).c_str(), std::get<0>(tup).length());
+				int procNo = hash % size;
+				localValues[procNo][tid].push_back(tup);
+				
+				int size = localValues[procNo][tid].size();
+			}
+			current_input += *moved; 
+			remaining -= *moved;
+			mv = 0;
+		}
+	}
+
+	#pragma omp parallel for
+	for (int i = 0; i < size; i++) {
+		for (int j = 0; j < MAX_THREADS; j++) {
+			for (int k = 0; k < localValues[i][j].size(); k++) {
+				std::tuple<std::string, int> tup = localValues[i][j].at(k);
+				if (buckets[i].find(std::get<0>(tup)) != buckets[i].end()) {
+					//key already exists. reduce locally
+					buckets[i].find(std::get<0>(tup))->second = reduce(buckets[i].find(std::get<0>(tup))->second, std::get<1>(tup));
+				} else {
+					buckets[i].insert(make_pair(std::get<0>(tup), std::get<1>(tup)));
+				}
+			}
+		}
 	}
 }
 
@@ -65,7 +88,6 @@ void mapReduce() {
 	
 	std::unordered_map<std::string, int>* buckets = new std::unordered_map<std::string, int>[size];
 	
-	
 	MPI_File file;
 	
 	MPI_Offset read_pointer = 0;
@@ -74,15 +96,12 @@ void mapReduce() {
 	MPI_File_open(MPI_COMM_WORLD, config.input, MPI_MODE_RDONLY, MPI_INFO_NULL, &file);
 	MPI_File_get_size(file, &file_size);
 	
-	
-	int chunk_size = 64;
+	int chunk_size = 67108864;
 	char* chunk = new char[chunk_size / sizeof(char)];
 	
 	MPI_Datatype chunk_type;
-	
 	MPI_Type_contiguous(chunk_size, MPI_CHAR, &chunk_type);
 	MPI_Type_commit(&chunk_type);
-	
 	
 	while(read_pointer < file_size)
 	{
@@ -111,14 +130,11 @@ void mapReduce() {
 		
 		read_pointer += chunk_size * size;
 		
-		
 		// map chunks
 		mapChunks(chunk, read_size, buckets);
-		
 	}
 	
 	int num_keys =  0;
-	
 	
 	int* bucket_sizes = new int[size];
 	int* bucket_num_chars = new int[size];
@@ -131,7 +147,6 @@ void mapReduce() {
 	
 	char* chars;
 	int* values;
-	
 
 	for(int i = 0; i < size; i++)
 	{
@@ -158,9 +173,6 @@ void mapReduce() {
 	
 	values = new int[num_keys];
 	
-	std::ostringstream ss;
-	ss << rank << ", keys: ";
-	
 	int i_key = 0;
 	char* current_key = chars;
 	int* current_value = values;
@@ -179,8 +191,6 @@ void mapReduce() {
 			
 			*current_value = value;
 			
-			ss << key << " ";
-			
 			current_key += key.size();
 			offset += key.size();
 			
@@ -188,9 +198,6 @@ void mapReduce() {
 			current_value++;
 		}
 	}
-	
-	//std::cout << ss.str() << std::endl;
-	
 	
 	int* recv_bucket_num_chars = new int[size];
 	int* recv_char_displs = new int[size];
@@ -248,7 +255,6 @@ void mapReduce() {
 	current_value = recv_values;
 	
 	std::ostringstream ss_recv;
-	ss_recv << rank << ", keys_recv: ";
 	for(int i = 0; i < recv_num_keys; i++)
 	{
 		int key_length = recv_key_lengths[i];
@@ -291,9 +297,7 @@ void mapReduce() {
 	for (itr = map.begin(); itr != map.end(); itr++) 
 	{
 		std::cout << itr->first << "  " << itr->second << std::endl; 
-	} 
-
-	std::cout << "writing starts" << std::endl;*/
+	}*/ 
 
 	//convert map to string
 	std::string toWrite = "";
@@ -302,8 +306,7 @@ void mapReduce() {
 		toWrite.append(" ");
 		toWrite.append(std::to_string(itr->second));
 		toWrite.append("\n");
-	}	
-	//std::cout << "toWrite: " << toWrite << std::endl;
+	}
 
 	char toWriteChar[toWrite.length() + 1];
 	strcpy(toWriteChar, toWrite.c_str());
@@ -314,11 +317,7 @@ void mapReduce() {
 	int localLength = toWrite.length();
 	int* localLengthPtr = &localLength;
 
-	//std::cout << "localLength: " << localLength << " toWriteChar: " << toWriteChar << "\n\n" << std::endl;
-
 	MPI_Exscan(localLengthPtr, prefix, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
-
-	//std::cout << "rank: " << rank << " length: " << *prefix << "toWrite length: " << toWrite << " " << toWrite.length() << "\n\n"<< std::endl;
 
 	MPI_File_open(MPI_COMM_WORLD, config.output, MPI_MODE_WRONLY | MPI_MODE_CREATE, MPI_INFO_NULL, &config.outputFile);
 	MPI_File_set_view(config.outputFile, *prefix, MPI_CHAR, MPI_CHAR, "native", MPI_INFO_NULL);
