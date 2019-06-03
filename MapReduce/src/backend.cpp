@@ -259,11 +259,11 @@ void mapReduce() {
 	{
 		int key_length = recv_key_lengths[i];
 		//std::cout << rank << ", recv length: " << key_length << std::endl;
-		std::string key(current_key, key_length);
-		ss_recv << key;
+		//std::string key(current_key, key_length);
+		//ss_recv << key;
 		
 		int value = *recv_values;
-		ss_recv << ":" << value << " ";
+		//ss_recv << ":" << value << " ";
 		
 		key_value_pairs_received.push_back(make_tuple(key, value));
 		current_key += key_length;
