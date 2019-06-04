@@ -29,7 +29,6 @@ void mapChunks(char* input, int length, std::unordered_map<std::string, int>* bu
 
 	std::string str(input, length);
 	
-	//std::cout << "rank " << rank << ": " << length <<  ", " << str << std::endl;
 	int mv = 0;
 	int* moved = &mv;
 	char* current_input = input;
@@ -38,16 +37,14 @@ void mapChunks(char* input, int length, std::unordered_map<std::string, int>* bu
 	while (remaining > 0) {
 		std::tuple<std::string, int> tup = map(current_input, moved, remaining);
 		if (std::get<0>(tup) != "") {
-		Hash hash = getHash(std::get<0>(tup).c_str(), std::get<0>(tup).length());
-		int procNo = hash % size;
-		if (buckets[procNo].find(std::get<0>(tup)) != buckets[procNo].end()) {
-			//key already exists. reduce locally
-			buckets[procNo].find(std::get<0>(tup))->second = reduce(buckets[procNo].find(std::get<0>(tup))->second, std::get<1>(tup));
-		} else {
-			buckets[procNo].insert(make_pair(std::get<0>(tup), std::get<1>(tup)));
-		}
-
-//std::cout << "Tupel: " << std::get<0>(tup) << " bucket: " << std::endl;//hash % size << " Hash: " << hash << std::endl; 
+			Hash hash = getHash(std::get<0>(tup).c_str(), std::get<0>(tup).length());
+			int procNo = hash % size;
+			if (buckets[procNo].find(std::get<0>(tup)) != buckets[procNo].end()) {
+				//key already exists. reduce locally
+				buckets[procNo].find(std::get<0>(tup))->second = reduce(buckets[procNo].find(std::get<0>(tup))->second, std::get<1>(tup));
+			} else {
+				buckets[procNo].insert(make_pair(std::get<0>(tup), std::get<1>(tup)));
+			}
 		}
 		
 		current_input += *moved; 
@@ -247,24 +244,18 @@ void mapReduce() {
 	current_key = recv_chars;
 	current_value = recv_values;
 	
-	std::ostringstream ss_recv;
-	ss_recv << rank << ", keys_recv: ";
 	for(int i = 0; i < recv_num_keys; i++)
 	{
 		int key_length = recv_key_lengths[i];
-		//std::cout << rank << ", recv length: " << key_length << std::endl;
 		std::string key(current_key, key_length);
 		ss_recv << key;
 		
 		int value = *recv_values;
-		ss_recv << ":" << value << " ";
 		
 		key_value_pairs_received.push_back(make_tuple(key, value));
 		current_key += key_length;
 		recv_values++;
 	}
-	//std::cout << ss_recv.str() << std::endl;
-	
 	
 	
 	std::vector<std::tuple<std::string, int>>& received = key_value_pairs_received;
