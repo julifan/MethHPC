@@ -17,11 +17,7 @@ struct Config
 struct Config config;
 
 void init(char* input, char* output) {
-	//MPI init
-	//set output file
-	//read from given input file (if rank == 0)
-	//scatter data to map's of processes (if rank == 0)
-	
+
 	config.input = input;
 	config.output = output;
 	
@@ -43,16 +39,16 @@ void mapChunks(char* input, int length, std::unordered_map<std::string, int>* bu
 	
 	//assumption: input and length are initialized.
 	while (remaining > 0) {
-		std::tuple<std::string, int> tup = map(current_input, moved, remaining);
-		if (std::get<0>(tup) != "") {
+		Pair tup = map(current_input, moved, remaining);
+		if (tup.key != "") {
 		//TODO probably pad strings? (to achieve constant length)
-		Hash hash = getHash(std::get<0>(tup).c_str(), std::get<0>(tup).length());
+		Hash hash = getHash(tup.key.c_str(), tup.key.length());
 		int procNo = hash % size;
-		if (buckets[procNo].find(std::get<0>(tup)) != buckets[procNo].end()) {
+		if (buckets[procNo].find(tup.key) != buckets[procNo].end()) {
 			//key already exists. reduce locally
-			buckets[procNo].find(std::get<0>(tup))->second = reduce(buckets[procNo].find(std::get<0>(tup))->second, std::get<1>(tup));
+			buckets[procNo].find(tup.key)->second = reduce(buckets[procNo].find(tup.key)->second, tup.value);
 		} else {
-			buckets[procNo].insert(make_pair(std::get<0>(tup), std::get<1>(tup)));
+			buckets[procNo].insert(make_pair(tup.key, tup.value));
 		}
 
 //std::cout << "Tupel: " << std::get<0>(tup) << " bucket: " << std::endl;//hash % size << " Hash: " << hash << std::endl; 
@@ -92,7 +88,7 @@ void mapReduce() {
 	MPI_File_get_size(file, &file_size);
 	
 	
-	int chunk_size = 67108864;
+	uint64_t chunk_size = 67108864;
 	char* chunk = new char[chunk_size / sizeof(char)];
 	
 	MPI_Datatype chunk_type;
@@ -134,38 +130,8 @@ void mapReduce() {
 		
 		// map chunks
 		mapChunks(chunk, read_size, buckets);
-//	if (rank == 0) {
-//		std::cout << "Next iteration. disp: " << disp << " read_size: " << read_size << " read_pointer: " << read_pointer << " file_size: " << file_size << std::endl;
-//	}	
-	
+
 	}
-	
-	//call map() from usecase
-
-	/*
-	int mv = 0;
-	int * moved = &mv;
-	
-	char* current_input = input;
-	int remaining = length;
-
-	//assumption: input and length are initialized.
-	while (remaining > 0) {
-		std::tuple<std::string, int> tup = map(current_input, moved, remaining);
-		if (std::get<0>(tup) != "") {
-		//TODO probably pad strings? (to achieve constant length)
-		Hash hash = getHash(std::get<0>(tup).c_str(), std::get<0>(tup).length());
-		buckets[hash % size].push_back(tup);
-
-//std::cout << "Tupel: " << std::get<0>(tup) << " bucket: " << std::endl;//hash % size << " Hash: " << hash << std::endl; 
-		}
-		
-		current_input += *moved; 
-		remaining -= *moved;
-		mv = 0;
-	}
-	*/
-//	std::cout << rank << ": finished file reading " << std::endl;
 		
 	int num_keys =  0;
 	
@@ -178,11 +144,6 @@ void mapReduce() {
 	
 	int* key_offsets;
 	int* key_lengths;
-	
-	/*
-	int* value_offsets;
-	int* value_lengths;
-	*/
 	
 	char* chars;
 	int* values;
@@ -213,9 +174,6 @@ void mapReduce() {
 	
 	values = new int[num_keys];
 	
-	std::ostringstream ss;
-	ss << rank << ", keys: ";
-	
 	int i_key = 0;
 	char* current_key = chars;
 	int* current_value = values;
@@ -234,7 +192,6 @@ void mapReduce() {
 			
 			*current_value = value;
 			
-			ss << key << " ";
 			
 			current_key += key.size();
 			offset += key.size();
@@ -243,9 +200,6 @@ void mapReduce() {
 			current_value++;
 		}
 	}
-	
-	//std::cout << ss.str() << std::endl;
-	
 	
 	int* recv_bucket_num_chars = new int[size];
 	int* recv_char_displs = new int[size];
@@ -297,24 +251,19 @@ void mapReduce() {
 
 	
 	
-	std::vector<std::tuple<std::string, int > > key_value_pairs_received;
+	std::vector<Pair > key_value_pairs_received;
 	
 	current_key = recv_chars;
 	current_value = recv_values;
 	
-	std::ostringstream ss_recv;
-	ss_recv << rank << ", keys_recv: ";
 	for(int i = 0; i < recv_num_keys; i++)
 	{
 		int key_length = recv_key_lengths[i];
-		// std::cout << rank << ", recv length: " << key_length << std::endl;
 		std::string key(current_key, key_length);
-		ss_recv << key;
 		
 		int value = *recv_values;
-		ss_recv << ":" << value << " ";
 		
-		key_value_pairs_received.push_back(make_tuple(key, value));
+		key_value_pairs_received.push_back(Pair(key, value));
 		current_key += key_length;
 		recv_values++;
 	}
@@ -322,7 +271,7 @@ void mapReduce() {
 //	std::cout << rank << ": finished communicating" << std::endl;
 	
 	
-	std::vector<std::tuple<std::string, int>>& received = key_value_pairs_received;
+	std::vector<Pair>& received = key_value_pairs_received;
 	
 	//====================================
 	//		Reduce
@@ -340,12 +289,12 @@ void mapReduce() {
 	std::unordered_map<std::string, int> map;
 	//TODO change 3 to size XD
 	for (int i = 0; i < received.size(); i++) {
-		std::tuple<std::string, int> tup = received[i];
-		if (map.find(std::get<0>(tup)) == map.end()) {
-			map.insert(make_pair(std::get<0>(tup), std::get<1>(tup)));
+		Pair tup = received[i];
+		if (map.find(tup.key) == map.end()) {
+			map.insert(make_pair(tup.key, tup.value));
 			
 		} else {
-			map.find(std::get<0>(tup))->second = reduce(map.find(std::get<0>(tup))->second, std::get<1>(tup));	
+			map.find(tup.key)->second = reduce(map.find(tup.key)->second, tup.value);	
 		}
 	}
 
