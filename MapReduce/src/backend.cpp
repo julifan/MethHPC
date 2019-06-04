@@ -17,8 +17,14 @@ struct Config
 struct Config config;
 
 void init(char* input, char* output) {
+	//MPI init
+	//set output file
+	//read from given input file (if rank == 0)
+	//scatter data to map's of processes (if rank == 0)
+	
 	config.input = input;
 	config.output = output;
+	
 }
 
 
@@ -35,9 +41,11 @@ void mapChunks(char* input, int length, std::unordered_map<std::string, int>* bu
 	char* current_input = input;
 	int remaining = length;
 	
+	//assumption: input and length are initialized.
 	while (remaining > 0) {
 		std::tuple<std::string, int> tup = map(current_input, moved, remaining);
 		if (std::get<0>(tup) != "") {
+		//TODO probably pad strings? (to achieve constant length)
 		Hash hash = getHash(std::get<0>(tup).c_str(), std::get<0>(tup).length());
 		int procNo = hash % size;
 		if (buckets[procNo].find(std::get<0>(tup)) != buckets[procNo].end()) {
@@ -54,14 +62,23 @@ void mapChunks(char* input, int length, std::unordered_map<std::string, int>* bu
 		remaining -= *moved;
 		mv = 0;
 	}
+	//std::cout << rank << ": finished mapping" << std::endl;
+		
+	
 }
 
 
 void mapReduce() {
-
+	//call map() from usecase
+	//redistribute
+	//reduce
+	//write to file (if rank == 0)
+	
 	int rank, size;
 	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 	MPI_Comm_size(MPI_COMM_WORLD, &size);
+	
+	
 	
 	std::unordered_map<std::string, int>* buckets = new std::unordered_map<std::string, int>[size];
 	
@@ -75,7 +92,7 @@ void mapReduce() {
 	MPI_File_get_size(file, &file_size);
 	
 	
-	int chunk_size = 64;
+	int chunk_size = 67108864;
 	char* chunk = new char[chunk_size / sizeof(char)];
 	
 	MPI_Datatype chunk_type;
@@ -86,14 +103,17 @@ void mapReduce() {
 	
 	while(read_pointer < file_size)
 	{
-		int read_size;
-		int disp;
+		uint64_t read_size;
+		uint64_t disp;
+		//int read_size;
+		//int disp;
 		if(read_pointer + size * chunk_size < file_size) {
 			read_size = chunk_size;
 			disp = read_pointer + rank * read_size;
 		}
 		else {
-			int leftover = file_size - read_pointer;
+			uint64_t leftover = file_size - read_pointer;
+			//int leftover = file_size - read_pointer;
 			read_size = leftover / size;
 			if(rank < leftover - read_size * size) {
 				read_size++;
@@ -114,9 +134,39 @@ void mapReduce() {
 		
 		// map chunks
 		mapChunks(chunk, read_size, buckets);
-		
+//	if (rank == 0) {
+//		std::cout << "Next iteration. disp: " << disp << " read_size: " << read_size << " read_pointer: " << read_pointer << " file_size: " << file_size << std::endl;
+//	}	
+	
 	}
 	
+	//call map() from usecase
+
+	/*
+	int mv = 0;
+	int * moved = &mv;
+	
+	char* current_input = input;
+	int remaining = length;
+
+	//assumption: input and length are initialized.
+	while (remaining > 0) {
+		std::tuple<std::string, int> tup = map(current_input, moved, remaining);
+		if (std::get<0>(tup) != "") {
+		//TODO probably pad strings? (to achieve constant length)
+		Hash hash = getHash(std::get<0>(tup).c_str(), std::get<0>(tup).length());
+		buckets[hash % size].push_back(tup);
+
+//std::cout << "Tupel: " << std::get<0>(tup) << " bucket: " << std::endl;//hash % size << " Hash: " << hash << std::endl; 
+		}
+		
+		current_input += *moved; 
+		remaining -= *moved;
+		mv = 0;
+	}
+	*/
+//	std::cout << rank << ": finished file reading " << std::endl;
+		
 	int num_keys =  0;
 	
 	
@@ -128,6 +178,11 @@ void mapReduce() {
 	
 	int* key_offsets;
 	int* key_lengths;
+	
+	/*
+	int* value_offsets;
+	int* value_lengths;
+	*/
 	
 	char* chars;
 	int* values;
@@ -207,8 +262,8 @@ void mapReduce() {
 	
 	MPI_Alltoall(bucket_num_chars, 1, MPI_INT, recv_bucket_num_chars, 1, MPI_INT, MPI_COMM_WORLD);
 	
-
-
+	
+	
 	int recv_num_chars = 0;
 	for(int i = 0; i < size; i++) {
 		recv_char_displs[i] = recv_num_chars; 
@@ -252,7 +307,7 @@ void mapReduce() {
 	for(int i = 0; i < recv_num_keys; i++)
 	{
 		int key_length = recv_key_lengths[i];
-		//std::cout << rank << ", recv length: " << key_length << std::endl;
+		// std::cout << rank << ", recv length: " << key_length << std::endl;
 		std::string key(current_key, key_length);
 		ss_recv << key;
 		
@@ -264,7 +319,7 @@ void mapReduce() {
 		recv_values++;
 	}
 	//std::cout << ss_recv.str() << std::endl;
-	
+//	std::cout << rank << ": finished communicating" << std::endl;
 	
 	
 	std::vector<std::tuple<std::string, int>>& received = key_value_pairs_received;
@@ -273,9 +328,17 @@ void mapReduce() {
 	//		Reduce
 	//====================================
 	
-	
+	/*
+	std::vector<std::tuple<std::string, int> > received[3];
+	//std::tuple<std::string, int> tup = std::make_tuple("abc", 1);
+	received[0].push_back(std::make_tuple("abc", 1));
+	received[0].push_back(std::make_tuple("deee", 1));
+	received[0].push_back(std::make_tuple("ddd", 2));
+	received[1].push_back(std::make_tuple("abc", 3));
+	*/
 	//assumption: tuples are in received[size]
 	std::unordered_map<std::string, int> map;
+	//TODO change 3 to size XD
 	for (int i = 0; i < received.size(); i++) {
 		std::tuple<std::string, int> tup = received[i];
 		if (map.find(std::get<0>(tup)) == map.end()) {
@@ -286,14 +349,15 @@ void mapReduce() {
 		}
 	}
 
+//	std::cout << rank << ": finished reducing" << std::endl;
+
 	std::unordered_map<std::string, int>:: iterator itr; 
-	/*std::cout << "\nAll Elements : \n"; 
-	for (itr = map.begin(); itr != map.end(); itr++) 
+	//std::cout << "\nAll Elements : \n"; 
+	/*for (itr = map.begin(); itr != map.end(); itr++) 
 	{
 		std::cout << itr->first << "  " << itr->second << std::endl; 
-	} 
+	} */
 
-	std::cout << "writing starts" << std::endl;*/
 
 	//convert map to string
 	std::string toWrite = "";
@@ -301,10 +365,11 @@ void mapReduce() {
 		toWrite.append(itr->first);
 		toWrite.append(" ");
 		toWrite.append(std::to_string(itr->second));
+		//toWrite.append(", ");
 		toWrite.append("\n");
 	}	
 	//std::cout << "toWrite: " << toWrite << std::endl;
-
+	//toWrite = "a";
 	char toWriteChar[toWrite.length() + 1];
 	strcpy(toWriteChar, toWrite.c_str());
 
@@ -325,6 +390,7 @@ void mapReduce() {
 	MPI_File_write_all(config.outputFile, toWriteChar, localLength, MPI_CHAR, MPI_STATUS_IGNORE);
 	MPI_File_close(&config.outputFile);
 
+//	std::cout << rank << ": finished writing" << std::endl;
 }
 
 
