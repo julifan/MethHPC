@@ -1,8 +1,11 @@
-#include <string>
-#include <iostream>
-#include <tuple>
-
 #include "usecase.h"
+
+#include <stdio.h>
+#include <math.h>
+#include <stdlib.h>
+#include <time.h>
+#include <assert.h>
+
 
 #define MAX_LENGTH 20
 
