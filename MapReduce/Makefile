@@ -1,6 +1,6 @@
-CC = mpicxx
-CFLAGS = -I./include -g -Wall -O3 -fopenmp
-LDFLAGS = -lm
+CC = CC
+CFLAGS = --std=c++11 -I./include -g -Wall -O3
+LDFLAGS = -lm 
 
 all: mapreduce
 
