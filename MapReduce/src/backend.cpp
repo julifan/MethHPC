@@ -37,7 +37,7 @@ void mapChunks(char* input, int length, std::unordered_map<std::string, int>* bu
 	MPI_Comm_size(MPI_COMM_WORLD, &size);
 
 	int MAX_THREADS = omp_get_max_threads();
-	std::vector<std::tuple<std::string, int> > localValues[size][MAX_THREADS];
+	std::vector<Pair> localValues[size][MAX_THREADS];
 
 	#pragma omp parallel for
 	for(int i = 0; i < omp_get_num_threads(); i++) {
@@ -51,34 +51,34 @@ void mapChunks(char* input, int length, std::unordered_map<std::string, int>* bu
 		if (tid == nt - 1) {
 			int missing = length - (nt * (length / nt));
 			remaining += missing;
+		}
 		int mv = 0;
 		int* moved = &mv; 
 		
 		while (remaining > 0) {
-			std::tuple<std::string, int> tup = map(current_input, moved, remaining);
-			if (std::get<0>(tup) != "") {
-				Hash hash = getHash(std::get<0>(tup).c_str(), std::get<0>(tup).length());
+			Pair tup = map(current_input, moved, remaining);
+			if (tup.key != "") {
+				Hash hash = getHash(tup.key.c_str(), tup.key.length());
 				int procNo = hash % size;
 				localValues[procNo][tid].push_back(tup);
-				
-				int size = localValues[procNo][tid].size();
 			}
 			current_input += *moved; 
 			remaining -= *moved;
 			mv = 0;
 		}
 	}
+	
 
 	#pragma omp parallel for
 	for (int i = 0; i < size; i++) {
 		for (int j = 0; j < MAX_THREADS; j++) {
 			for (int k = 0; k < localValues[i][j].size(); k++) {
-				std::tuple<std::string, int> tup = localValues[i][j].at(k);
-				if (buckets[i].find(std::get<0>(tup)) != buckets[i].end()) {
+				Pair tup = localValues[i][j].at(k);
+				if (buckets[i].find(tup.key) != buckets[i].end()) {
 					//key already exists. reduce locally
-					buckets[i].find(std::get<0>(tup))->second = reduce(buckets[i].find(std::get<0>(tup))->second, std::get<1>(tup));
+					buckets[i].find(tup.key)->second = reduce(buckets[i].find(tup.key)->second, tup.value);
 				} else {
-					buckets[i].insert(make_pair(std::get<0>(tup), std::get<1>(tup)));
+					buckets[i].insert(make_pair(tup.key, tup.value));
 				}
 			}
 		}
