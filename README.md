@@ -1,6 +1,6 @@
 # MethHPC
 
-Final project for the Methods in High Performance Computing (DD2356). 
+Final project for the Methods in High Performance Computing course (DD2356). 
 
 ## Compile and execute code on Beskow 
 
