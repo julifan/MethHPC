@@ -17,6 +17,7 @@ struct Pair {
 
 
 Pair map(char* block, int* moved, const int totalLength);
+
 int reduce(int one, int two);
 
 

@@ -9,9 +9,11 @@
 
 #define MAX_LENGTH 20
 
+
 Pair map(char* block, int* moved, const int totalLength) 
 {
 	std::string toReturn = std::string("");
+
 	while (*moved <= totalLength) {
 		if ((block[0] < 'a' || block[0] > 'z') && (block[0] < 'A' || block[0] > 'Z')) {
 			if (toReturn.length() > 0) {
