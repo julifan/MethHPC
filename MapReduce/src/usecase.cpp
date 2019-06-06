@@ -27,8 +27,8 @@ Pair map(char* block, int* moved, const int totalLength)
 			}
 		} else if (toReturn.length() == MAX_LENGTH) {
 			Pair tup(toReturn, 1);
-			block = block + 1; 
-			*moved += 1;
+			// block = block + 1; 
+			//*moved += 1;
 			return tup;
 		} else {
 			toReturn.append(block, 1);
