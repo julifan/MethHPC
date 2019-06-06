@@ -1,5 +1,5 @@
 CC = CC
-CFLAGS = --std=c++11 -I./include -g -Wall -O3
+CFLAGS = --std=c++11 -I./include -g -Wall -O3 -fopenmp
 LDFLAGS = -lm 
 
 
