@@ -29,10 +29,6 @@ int main(int argc, char *argv[])
 
 	while ((opt = getopt(argc, argv, "cfr:")) != -1) {
 		switch (opt) {
-			case 'f':
-				if (world_rank == 0) fprintf(stderr, "Using Fox's algorithm\n");
-				mapRed = &mapReduce;
-				break;
 			case 'r':
 				repeat = atoi(optarg);
 				break;
