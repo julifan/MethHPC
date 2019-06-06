@@ -11,6 +11,7 @@
 #include <string.h>
 #include <assert.h>
 
+#include <iostream>
 
 #include <unordered_map>
 
@@ -87,7 +88,11 @@ void mapReduce() {
 		
 		
 		uint64_t chunk_size = 67108864;
-		char* chunk = new char[chunk_size / sizeof(char)];
+		
+		char** chunks = new char*[2];
+		
+		chunks[0] = new char[chunk_size / sizeof(char)];
+		chunks[1] = new char[chunk_size / sizeof(char)];
 		
 		MPI_Datatype chunk_type, file_type;
 		MPI_Datatype reduced_chunk_type;
@@ -102,13 +107,23 @@ void mapReduce() {
 		uint64_t full_iterations = file_size / (size * chunk_size);
 		uint64_t leftover = file_size - full_iterations * (size * chunk_size);
 		
-		for(int i = 0; i < full_iterations; i++) {
-			MPI_File_read_all(file, chunk, chunk_size, MPI_CHAR, MPI_STATUS_IGNORE);
-			
-			mapChunks(chunk, chunk_size, buckets);
+		int i = 0; // numer of reads that have been started / index of the next read
+		uint64_t read_size = chunk_size;
+		MPI_Request* requests = new MPI_Request[full_iterations + 1];
+		if(full_iterations > 0) {
+			MPI_File_iread_all(file, chunks[i % 2], chunk_size, MPI_CHAR, &requests[i]);
+			i++;
+			while(i < full_iterations) {
+				MPI_Wait(&requests[i - 1], MPI_STATUS_IGNORE);
+				
+				MPI_File_iread_all(file, chunks[i % 2], chunk_size, MPI_CHAR, &requests[i]);
+				i++;
+				std::cout << rank << ": " << std::string(chunks[(i - 2) % 2], read_size) << std::endl;
+				mapChunks(chunks[(i - 2) % 2], chunk_size, buckets);
+			}
 		}
 		if(leftover > 0 ) {
-			uint64_t read_size = leftover / size;
+			read_size = leftover / size;
 			if(rank < leftover - read_size * size) {
 				read_size++;
 				disp = full_iterations * size * chunk_size + rank * read_size;
@@ -118,13 +133,29 @@ void mapReduce() {
 			}
 			MPI_Type_contiguous(read_size, MPI_CHAR, &reduced_chunk_type);
 			MPI_Type_commit(&reduced_chunk_type);
+			
+			if(i > 0) {
+				MPI_Wait(&requests[i - 1], MPI_STATUS_IGNORE);
+			}
 			MPI_File_set_view(file, disp, MPI_CHAR, reduced_chunk_type, "native", MPI_INFO_NULL);
-			MPI_File_read_all(file, chunk, read_size, MPI_CHAR, MPI_STATUS_IGNORE);
-			mapChunks(chunk, read_size, buckets);
+			MPI_File_iread_all(file, chunks[i % 2], read_size, MPI_CHAR, &requests[i]);
+			i++;
+			if(i > 1) {
+				std::cout << rank << ": " << std::string(chunks[(i - 2) % 2], chunk_size) << std::endl;
+				mapChunks(chunks[(i - 2) % 2], chunk_size, buckets);
+			}
+		}
+		if(i > 0) {
+			MPI_Wait(&requests[i - 1], MPI_STATUS_IGNORE);
+			// no additional read pending for the last chunk
+			std::cout << rank << ": " << std::string(chunks[(i - 1) % 2], read_size) << std::endl;
+			mapChunks(chunks[(i - 1) % 2], read_size, buckets);
 		}
 		
 		MPI_File_close(&file);
-		delete[] chunk;
+		delete[] chunks[0];
+		delete[] chunks[1];
+		delete[] requests;
 	
 	}
 	
@@ -151,7 +182,7 @@ void mapReduce() {
 		
 		int recv_num_keys = 0;
 		int* recv_bucket_sizes = new int[size];
-		int* recv_bucket_displs  = new int[size];;
+		int* recv_bucket_displs  = new int[size];
 		
 		
 		int recv_num_chars = 0;
@@ -167,8 +198,7 @@ void mapReduce() {
 		
 		
 		
-		for(int i = 0; i < size; i++)
-		{
+		for(int i = 0; i < size; i++) {
 			bucket_sizes[i] =  buckets[i].size();
 			bucket_displs[i] = num_keys;
 			num_keys += bucket_sizes[i];
@@ -178,10 +208,9 @@ void mapReduce() {
 			
 			
 			std::unordered_map<std::string, int>:: iterator itr; 
-			for (itr = buckets[i].begin(); itr != buckets[i].end(); itr++) 
-			{
+			for (itr = buckets[i].begin(); itr != buckets[i].end(); itr++) {
 				bucket_num_chars[i] += itr->first.size();
-			} 
+			}
 			num_chars += bucket_num_chars[i];
 			
 		}
