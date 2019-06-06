@@ -106,7 +106,7 @@ void mapReduce() {
 		uint64_t full_iterations = file_size / (size * chunk_size);
 		uint64_t leftover = file_size - full_iterations * (size * chunk_size);
 		
-		int i = 0; // numer of reads that have been started / index of the next read
+		uint64_t i = 0; // numer of reads that have been started / index of the next read
 		uint64_t read_size = chunk_size;
 		MPI_Request* requests = new MPI_Request[full_iterations + 1];
 		if(full_iterations > 0) {
@@ -315,7 +315,7 @@ void mapReduce() {
 	
 	std::unordered_map<std::string, int> map;
 	
-	for (int i = 0; i < received.size(); i++) {
+	for (long unsigned int i = 0; i < received.size(); i++) {
 		Pair tup = received[i];
 		if (map.find(tup.key) == map.end()) {
 			map.insert(make_pair(tup.key, tup.value));
