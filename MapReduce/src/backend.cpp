@@ -61,19 +61,18 @@ void mapChunks(char* input, int length, std::unordered_map<std::string, int>* bu
 				Hash hash = getHash(tup.key.c_str(), tup.key.length());
 				int procNo = hash % size;
 				localValues[procNo][tid].push_back(tup);
-				
-				int size = localValues[procNo][tid].size();
 			}
 			current_input += *moved; 
 			remaining -= *moved;
 			mv = 0;
 		}
 	}
+	
 
 	#pragma omp parallel for
 	for (int i = 0; i < size; i++) {
 		for (int j = 0; j < MAX_THREADS; j++) {
-			for (int k = 0; k < localValues[i][j].size(); k++) {
+			for (long unsigned int k = 0; k < localValues[i][j].size(); k++) {
 				Pair tup = localValues[i][j].at(k);
 				if (buckets[i].find(tup.key) != buckets[i].end()) {
 					//key already exists. reduce locally
@@ -92,7 +91,6 @@ void mapReduce() {
 	int rank, size;
 	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 	MPI_Comm_size(MPI_COMM_WORLD, &size);
-	
 	
 	std::unordered_map<std::string, int>* buckets = new std::unordered_map<std::string, int>[size];
 	
@@ -129,7 +127,7 @@ void mapReduce() {
 		uint64_t full_iterations = file_size / (size * chunk_size);
 		uint64_t leftover = file_size - full_iterations * (size * chunk_size);
 		
-		int i = 0; // numer of reads that have been started / index of the next read
+		uint64_t i = 0; // numer of reads that have been started / index of the next read
 		uint64_t read_size = chunk_size;
 		MPI_Request* requests = new MPI_Request[full_iterations + 1];
 		if(full_iterations > 0) {
@@ -176,6 +174,7 @@ void mapReduce() {
 		delete[] chunks[0];
 		delete[] chunks[1];
 		delete[] requests;
+
 	
 	}
 	
@@ -194,8 +193,7 @@ void mapReduce() {
 		int* char_displs = new int[size];
 		
 		int* key_lengths;
-		
-		
+
 		char* chars;
 		int* values;
 		
@@ -293,7 +291,6 @@ void mapReduce() {
 		MPI_Alltoallv(key_lengths, bucket_sizes, bucket_displs, MPI_INT, recv_key_lengths, recv_bucket_sizes, recv_bucket_displs, MPI_INT, MPI_COMM_WORLD);
 		
 		MPI_Alltoallv(values, bucket_sizes, bucket_displs, MPI_INT, recv_values, recv_bucket_sizes, recv_bucket_displs, MPI_INT, MPI_COMM_WORLD);
-
 		
 		delete[] chars;
 		delete[] values;
@@ -302,7 +299,6 @@ void mapReduce() {
 		delete[] bucket_num_chars;
 		delete[] char_displs;
 		delete[] key_lengths;
-		
 		
 		
 		{
@@ -338,7 +334,7 @@ void mapReduce() {
 	
 	std::unordered_map<std::string, int> map;
 	
-	for (int i = 0; i < received.size(); i++) {
+	for (long unsigned int i = 0; i < received.size(); i++) {
 		Pair tup = received[i];
 		if (map.find(tup.key) == map.end()) {
 			map.insert(make_pair(tup.key, tup.value));
@@ -369,9 +365,9 @@ void mapReduce() {
 	int localLength = toWrite.length();
 	int* localLengthPtr = &localLength;
 
-
+	
 	MPI_Exscan(localLengthPtr, prefix, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
-
+	
 
 	MPI_File_open(MPI_COMM_WORLD, config.output, MPI_MODE_WRONLY | MPI_MODE_CREATE, MPI_INFO_NULL, &config.outputFile);
 	MPI_File_set_view(config.outputFile, *prefix, MPI_CHAR, MPI_CHAR, "native", MPI_INFO_NULL);
