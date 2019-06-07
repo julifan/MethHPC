@@ -153,6 +153,7 @@ void mapReduce() {
 		MPI_File_close(&file);
 		delete[] chunks[0];
 		delete[] chunks[1];
+		delete[] chunks;
 		delete[] requests;
 	
 	}
