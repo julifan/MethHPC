@@ -121,21 +121,22 @@ void mapReduce() {
 			}
 		}
 		if(leftover > 0 ) {
-			read_size = leftover / size;
-			if(rank < leftover - read_size * size) {
-				read_size++;
-				disp = full_iterations * size * chunk_size + rank * read_size;
+			read_size = chunk_size;
+			if(leftover - rank * read_size < 0){
+				read_size = 0; // disp = full_iterations * size * chunk_size + (leftover - read_size * size) * (read_size + 1) + (rank - (leftover - read_size * size)) * read_size;
 			}
-			else {
-				disp = full_iterations * size * chunk_size + (leftover - read_size * size) * (read_size + 1) + (rank - (leftover - read_size * size)) * read_size;
+			if(leftover - (rank+1) * read_size < 0) {
+				read_size = leftover - rank * read_size;
+				// disp = full_iterations * size * chunk_size + rank * read_size;
 			}
-			MPI_Type_contiguous(read_size, MPI_CHAR, &reduced_chunk_type);
-			MPI_Type_commit(&reduced_chunk_type);
 			
-			if(i > 0) {
-				MPI_Wait(&requests[i - 1], MPI_STATUS_IGNORE);
-			}
-			MPI_File_set_view(file, disp, MPI_CHAR, reduced_chunk_type, "native", MPI_INFO_NULL);
+			// MPI_Type_contiguous(read_size, MPI_CHAR, &reduced_chunk_type);
+			// MPI_Type_commit(&reduced_chunk_type);
+			
+			// if(i > 0) {
+				//MPI_Wait(&requests[i - 1], MPI_STATUS_IGNORE);
+			//}
+			// MPI_File_set_view(file, disp, MPI_CHAR, reduced_chunk_type, "native", MPI_INFO_NULL);
 			MPI_File_iread_all(file, chunks[i % 2], read_size, MPI_CHAR, &requests[i]);
 			i++;
 			if(i > 1) {
