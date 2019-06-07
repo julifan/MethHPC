@@ -1,0 +1,7 @@
+The branch beskov-basic contains the basic version implementing collective I/O, openMP the version utilizing openMP and non_blocking_io the version with non-blocking input.
+master contains a merge between openMP and an older version of non_blocking_io that is neither considered for the report nor as part of the submission.
+
+Has to be compiled with the module PrgEnv-gnu, where non_blocking_io (and master) additionally require the modules craype/2.5.14 and cray-mpich/7.7.0 and possibly cce/8.6.5 to be compiled and run.
+
+The number of repeats can be specified with -r.
+The following arguments are the name of the input file and the name of the output file.
